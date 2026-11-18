@@ -181,13 +181,8 @@ export function apply(ctx: Context, config: Config): void {
     ready: ready('search'),
     search: (request, signal) => searchApi.search(request, signal),
   })
-  ctx.web.registerFetchProvider({
-    id: fetchApi.id,
-    description: fetchApi.description,
-    available: () => fetchApi.available(),
-    ready: ready('fetch'),
-    fetch: (request, signal) => fetchApi.fetch(request, signal),
-  })
+  // TTOken Code: TTOken serves search only; web-fetch-http fetches pages on the user's device.
+  void fetchApi
 }
 
 /**
@@ -220,7 +215,7 @@ function resolveTarget(
     }).filter(isCandidate)
     return { guidance: guidance(true), auth: {
       sources,
-      missingCredentialMessage: `DeepSeek ${subject} API sends the API key under ${json} to its own endpoint, and no key is`
+      missingCredentialMessage: `TTOken ${subject} API sends the API key under ${json} to its own endpoint, and no key is`
         + ` configured for ${json}. Guide the user to export ${json} in the launching environment, or to correct`
         + ` ${name}.${prefix}ApiKeyEnv.`,
     } }
@@ -263,8 +258,8 @@ function unresolved(capability: Capability, candidate: DeepSeekAuthUnresolved): 
  * @returns the source whose diagnostic names the route and both recoveries.
  */
 function misconfigured(capability: Capability, kind: DeepSeekAuthKind, error: unknown): DeepSeekWebAuthSource {
-  const provider = kind === 'account' ? 'DeepSeek account model provider' : 'DeepSeek API-key model provider'
-  const credential = kind === 'account' ? 'the DeepSeek account sign-in' : 'that provider\'s API key'
+  const provider = kind === 'account' ? 'TTOken account model provider' : 'TTOken API-key model provider'
+  const credential = kind === 'account' ? 'the TTOken account sign-in' : 'that provider\'s API key'
   return unresolvedSource(capability, `${credential} to the origin of the ${provider}, and that provider's settings do not resolve`,
     error, 'correct that provider\'s settings on the Models page or in the deployment configuration')
 }
@@ -276,14 +271,14 @@ function misconfigured(capability: Capability, kind: DeepSeekAuthKind, error: un
  * @returns the source whose diagnostic names the variable and both recoveries.
  */
 function misconfiguredDeployment(capability: Capability, error: unknown): DeepSeekWebAuthSource {
-  return unresolvedSource(capability, `the DeepSeek account sign-in to the origin of ${DEEPSEEK_BASE_URL_ENV}, and that value does not resolve`,
+  return unresolvedSource(capability, `the TTOken account sign-in to the origin of ${DEEPSEEK_BASE_URL_ENV}, and that value does not resolve`,
     error, `correct ${DEEPSEEK_BASE_URL_ENV} in the launching environment`)
 }
 
 /** A misconfigured source whose diagnostic names what the operation sends where, the failure, and both recoveries. */
 function unresolvedSource(capability: Capability, destination: string, error: unknown, recovery: string): DeepSeekWebAuthSource {
   const { subject, prefix } = CAPABILITY[capability]
-  return { kind: 'misconfigured', message: `DeepSeek ${subject} API sends ${destination}: ${errorMessage(error)}. ${subject} did not`
+  return { kind: 'misconfigured', message: `TTOken ${subject} API sends ${destination}: ${errorMessage(error)}. ${subject} did not`
     + ` send the request. Guide the user to ${recovery}, or to set ${name}.${prefix}BaseURL and ${name}.${prefix}ApiKeyEnv so`
     + ` ${subject} uses its own endpoint.` }
 }
@@ -298,28 +293,28 @@ function unresolvedSource(capability: Capability, destination: string, error: un
 function missingMessage(capability: Capability, rule: Rule, keyRef: string): string {
   const { subject, prefix } = CAPABILITY[capability]
   const ref = JSON.stringify(keyRef)
-  const addKey = `add the DeepSeek API key on the Models page or export ${ref} in the launching environment`
+  const addKey = `add the TTOken API key on the Models page or export ${ref} in the launching environment`
   const billing = `${name}.${prefix}Billing`
   const settings = 'on the Web search and fetch settings page'
   switch (rule) {
     case 'account-conversation':
-      return `DeepSeek ${subject} API uses the DeepSeek account sign-in of this conversation, then the DeepSeek API key, and`
-        + ` neither is available: no signed-in DeepSeek account is available, and no key is configured for ${ref}. Guide the`
-        + ` user to sign in to DeepSeek, or to ${addKey}.`
+      return `TTOken ${subject} API uses the TTOken account sign-in of this conversation, then the TTOken API key, and`
+        + ` neither is available: no signed-in TTOken account is available, and no key is configured for ${ref}. Guide the`
+        + ` user to sign in to TTOken, or to ${addKey}.`
     case 'official-conversation':
-      return `DeepSeek ${subject} API uses the DeepSeek API key, as this conversation's model provider does, and no key is`
-        + ` configured for ${ref}. Guide the user to ${addKey}, or to sign in to DeepSeek and set ${billing} to "account"`
+      return `TTOken ${subject} API uses the TTOken API key, as this conversation's model provider does, and no key is`
+        + ` configured for ${ref}. Guide the user to ${addKey}, or to sign in to TTOken and set ${billing} to "account"`
         + ` ${settings}.`
     case 'other-conversation':
-      return `DeepSeek ${subject} API uses the DeepSeek API key, then the DeepSeek account sign-in, and neither is available:`
-        + ` no key is configured for ${ref}, and no signed-in DeepSeek account is available. Guide the user to ${addKey}, or`
-        + ' to sign in to DeepSeek.'
+      return `TTOken ${subject} API uses the TTOken API key, then the TTOken account sign-in, and neither is available:`
+        + ` no key is configured for ${ref}, and no signed-in TTOken account is available. Guide the user to ${addKey}, or`
+        + ' to sign in to TTOken.'
     case 'account':
-      return `DeepSeek ${subject} API bills only the signed-in DeepSeek account, and no signed-in DeepSeek account is`
-        + ` available. ${subject} did not send the request. Guide the user to sign in to DeepSeek, or to set ${billing} to`
+      return `TTOken ${subject} API bills only the signed-in TTOken account, and no signed-in TTOken account is`
+        + ` available. ${subject} did not send the request. Guide the user to sign in to TTOken, or to set ${billing} to`
         + ` "api-key" or "auto" ${settings}.`
     case 'api-key':
-      return `DeepSeek ${subject} API bills only the DeepSeek API key, and no key is configured for ${ref}. Guide the user to`
+      return `TTOken ${subject} API bills only the TTOken API key, and no key is configured for ${ref}. Guide the user to`
         + ` ${addKey}, or to set ${billing} to "account" or "auto" ${settings}.`
     /* v8 ignore next -- the switch is exhaustive. */
     default: return assertNever(rule)

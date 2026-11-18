@@ -1,0 +1,16 @@
+# Pencarian web lewat TTOken Gateway, digabung ke lapisan distribusi oleh
+# `ttoken/apply-brand.mjs`.
+#
+# Plugin pencarian web upstream mengirim pencarian ke `POST /v1/tools/search`
+# di api.ttoken.dev (docs/CODE-DESKTOP.md di repo TTOken) dengan API key rute
+# TTOken Gateway. Pengambilan halaman tetap di perangkat user (web-fetch-http).
+# Pertanyaan user tidak ikut dikirim (`sendOriginalQuestion: false`); Brave
+# tidak memakainya. Selama `webSearch` di `ttoken/brand.json` mati,
+# apply-brand.mjs menambahkan `disabled: true` ke setiap baris di file ini.
+# Nyalakan setelah rute itu ter-deploy dengan key Brave.
+- id: deepseek-auth
+- id: web-deepseek-api
+  config:
+    searchBaseURL: https://api.ttoken.dev/v1/tools
+    searchApiKeyEnv: TTOKEN_API_KEY
+    sendOriginalQuestion: false

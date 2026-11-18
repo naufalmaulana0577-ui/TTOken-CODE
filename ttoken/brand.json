@@ -7,6 +7,7 @@
   "artifactPrefix": "ttoken-code",
   "homeDirName": ".ttoken-code",
   "accountLogin": false,
+  "webSearch": false,
   "upstream": {
     "productName": "DeepSeek Harness",
     "appIds": [

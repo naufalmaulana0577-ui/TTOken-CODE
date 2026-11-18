@@ -80,13 +80,10 @@
 - id: skill-badge
   disabled: true
 
-# Mati sampai diarahkan ke server TTOken: pencarian dan pengambilan halaman
-# web. Alamat bawaannya adalah server DeepSeek. deepseek-auth hanya dipakai
-# rute itu dan rute model akun DeepSeek.
-- id: deepseek-auth
-  disabled: true
-- id: web-deepseek-api
-  disabled: true
+# Halaman pengaturan pencarian web juga mati: pilihan penyedia dan cara bayar
+# di sana khusus layanan DeepSeek, sedangkan pencarian web TTOken Code punya
+# satu penyedia dan dibayar dari saldo key Gateway. Pencarian web sendiri ada
+# di web.patch.yml.
 - id: ui-settings-web-search
   disabled: true
 

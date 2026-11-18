@@ -104,7 +104,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
  * @returns The stable provider error.
  */
 export function invalidResponse(): WebError {
-  return new WebError('DeepSeek returned an invalid response body', 'WEB_PROVIDER_ERROR')
+  return new WebError('TTOken returned an invalid response body', 'WEB_PROVIDER_ERROR')
 }
 
 /** Dispatch one operation using a single settings and credential snapshot: one request, with the first present source.
@@ -154,14 +154,14 @@ export async function dispatchDeepSeekWeb<T>(
     throw interrupted(error) ?? searchEndpointError(
       guidance,
       endpoint,
-      `DeepSeek web request failed: ${String(error)}`,
+      `TTOken web request failed: ${String(error)}`,
       error,
     )
   }
 
   if (!response.ok) {
     const status = response.status
-    let message = `DeepSeek API error (HTTP ${status})`
+    let message = `TTOken API error (HTTP ${status})`
     let aborted: WebError | undefined
     try {
       const parsed: unknown = await response.json()
@@ -202,7 +202,7 @@ export async function dispatchDeepSeekWeb<T>(
     if (stopped !== undefined) throw stopped
     const message = error instanceof WebError
       ? error.message
-      : `DeepSeek returned an unprocessable response body: ${String(error)}`
+      : `TTOken returned an unprocessable response body: ${String(error)}`
     throw searchEndpointError(guidance, endpoint, message, error)
   }
 }
@@ -228,7 +228,7 @@ function requestSignal(signal: AbortSignal | undefined, revoked: AbortSignal | u
 function credentialWithdrawnError(kind: DeepSeekAuthKind, cause: unknown): WebError {
   return new WebError(
     kind === 'account'
-      ? 'The DeepSeek account signed out before this web request finished. Guide the user to sign in to DeepSeek again;'
+      ? 'The TTOken account signed out before this web request finished. Guide the user to sign in to TTOken again;'
         + ' the endpoint does not need changing.'
       : 'The credential this web request carried was withdrawn before the request finished. Guide the user to check that'
         + ' credential on the Models page.',
@@ -241,7 +241,7 @@ function credentialWithdrawnError(kind: DeepSeekAuthKind, cause: unknown): WebEr
 function accountRejectedError(message: string): WebError {
   return new WebError(
     `${message}\n\nDeepSeek rejected the account sign-in used for this web request. `
-    + 'Guide the user to sign in to DeepSeek again; the endpoint does not need changing.',
+    + 'Guide the user to sign in to TTOken again; the endpoint does not need changing.',
     'WEB_PROVIDER_ERROR',
   )
 }
@@ -261,11 +261,11 @@ function searchEndpointError(
   const baseURLField = `${plugin}.${options.baseURLField}`, apiKeyEnvField = `${plugin}.${options.apiKeyEnvField}`
   const recovery = options.custom
     ? `${subject} sends the API key under ${apiKeyEnvField} to ${baseURLField}. If that endpoint is not intended, guide the`
-      + ` user to correct ${baseURLField} and ${apiKeyEnvField}, or to remove both so ${subject} uses the DeepSeek`
+      + ` user to correct ${baseURLField} and ${apiKeyEnvField}, or to remove both so ${subject} uses the TTOken`
       + ' credential of the conversation.'
-    : `${subject} derives this endpoint from the base URL of the DeepSeek model provider whose credential it uses. If that`
+    : `${subject} derives this endpoint from the base URL of the TTOken model provider whose credential it uses. If that`
       + ' endpoint is not intended, guide the user to check that provider\'s base URL on the Models page, or to set'
-      + ` ${baseURLField} to a trusted DeepSeek endpoint and ${apiKeyEnvField} to the credential reference of its API key.`
+      + ` ${baseURLField} to a trusted TTOken endpoint and ${apiKeyEnvField} to the credential reference of its API key.`
   return new WebError(
     `${message}\n\nThe web request used endpoint ${JSON.stringify(endpoint)}. ${recovery} Only the user should choose or`
     + ' change the endpoint.',
@@ -291,7 +291,7 @@ async function authorize(auth: DeepSeekWebAuth, signal?: AbortSignal): Promise<D
     if (authorization !== undefined) return authorization
   }
   throw new WebError(
-    auth.missingCredentialMessage ?? 'DeepSeek web access has no credential to send',
+    auth.missingCredentialMessage ?? 'TTOken web access has no credential to send',
     'WEB_PROVIDER_CREDENTIAL_MISSING',
   )
 }
@@ -312,7 +312,7 @@ async function resolveCredential<T>(resolve: () => Promise<T>, signal?: AbortSig
   } catch (error: unknown) {
     if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
     throw new WebError(
-      `DeepSeek web credential resolution failed: ${String(error)}`,
+      `TTOken web credential resolution failed: ${String(error)}`,
       'WEB_PROVIDER_ERROR',
       { cause: error },
     )
@@ -360,7 +360,7 @@ function throwIfSearchAborted(signal?: AbortSignal): void {
  * @returns a `WEB_ABORTED` error.
  */
 export function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
-  return new WebError('DeepSeek web request aborted', 'WEB_ABORTED', {
+  return new WebError('TTOken web request aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
 }

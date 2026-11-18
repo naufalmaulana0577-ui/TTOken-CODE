@@ -36,6 +36,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 18. **Prompt model** di plugin konteks mode Creator dan rekomendasi menyebut TTOken Code.
 19. **Halaman Plugins** tidak menampilkan nama paket upstream, dan paket di `HIDDEN_PACKAGES` tidak didaftar sama sekali, supaya tidak bisa dinyalakan lagi dari sana. Contoh nama paket di dialog instal menjadi `@author/plugin-name`.
 20. **Login akun TTOken.** Plugin akun upstream diarahkan ke rute `/api/v1/code/desktop` di ttoken.dev (`docs/CODE-DESKTOP.md` di repo TTOken): alamat rute, header token, halaman persetujuan, saldo Rupiah, teks "akun TTOken" di delapan bahasa. Key perangkat hasil login otomatis menjadi API key rute TTOken Gateway (`host/account-key-mirror.ts`), jadi rute model akun DeepSeek tidak dipakai. Pemakaian dan Isi saldo membuka dashboard ttoken.dev di browser. Layanan akunnya selalu menyala karena layar sambutan membaca statusnya; antarmukanya (`layer/account.patch.yml`) dan tombol masuk menyala lewat `accountLogin`.
+21. **Pencarian web lewat TTOken Gateway.** Plugin pencarian web upstream memakai `POST /v1/tools/search` di api.ttoken.dev dengan API key rute Gateway (`layer/web.patch.yml`, saklar `webSearch`). Penyedia Fetch plugin itu tidak didaftarkan karena TTOken tidak menyediakan pengambilan halaman; `web_fetch` tetap memakai web-fetch-http di perangkat user. Pesan error dan nama plugin menyebut TTOken.
 
 
 
@@ -90,10 +91,10 @@ Urut dari yang paling menghalangi rilis:
 
 1. **Layanan kebijakan update.** Build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Sebelum rilis publik perlu endpoint di domain TTOken.
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
-3. **Menyalakan login akun TTOken.** Sisi aplikasi sudah siap (aturan 20). Server ada di branch `feat/code-desktop-login` repo TTOken. Setelah API dan web itu ter-deploy: set `"accountLogin": true` di `brand.json`, jalankan `node ttoken/apply-brand.mjs`, commit, push.
+3. **Menyalakan login akun dan pencarian web.** Sisi aplikasi sudah siap (aturan 20 dan 21). Server ada di branch `feat/code-desktop-login` dan `feat/code-desktop-web-search` (bertumpuk) di repo TTOken. Setelah API dan web itu ter-deploy: set `"accountLogin": true` di `brand.json`; bila `BRAVE_SEARCH_API_KEY` sudah dipasang di server, set juga `"webSearch": true`. Lalu jalankan `node ttoken/apply-brand.mjs`, commit, push.
 4. **Tampilan di dalam jendela** sudah bermerek TTOken Code, tetapi tema warna, tata letak tiga kolom, dan teks antarmukanya masih milik upstream. Tahap berikutnya: token tema TTOken, lalu tata letak baru. Penyebutan nama upstream yang tersisa di teks pengaturan dan bantuan perlu disisir.
 5. **Tagline layar sambutan** masih milik DeepSeek ("Build potential. Explore intelligence.", kunci `welcomeDescription` di `apps/desktop/src/locale.ts`, delapan bahasa). Menunggu tagline TTOken dari pemilik produk.
-6. **Pencarian web dan analitik** masih mati; keduanya butuh layanan di server TTOken (endpoint pencarian dan pengambilan halaman di Gateway, kolektor OTLP).
+6. **Analitik** masih mati; butuh kolektor OTLP milik TTOken dan pembaruan kebijakan privasi.
 7. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.
 8. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
 9. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.
@@ -103,9 +104,9 @@ Urut dari yang paling menghalangi rilis:
 
 `layer/cordis.patch.yml` dan `layer/account.patch.yml` mematikan tiga kelompok plugin. Halaman Plugins tidak mendaftar semuanya (`HIDDEN_PACKAGES` di `apply-brand.mjs`):
 
-- **Tetap mati**, karena hanya berguna dengan layanan DeepSeek, mengirim data ke sana, atau digantikan rute TTOken Gateway: provider resmi DeepSeek dan pendukungnya, rute model akun DeepSeek, unggahan log sesi, pencarian native DeepSeek, impor chat dari situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
-- **Mati sampai server TTOken siap**: pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya adalah server DeepSeek. Begitu diarahkan, hapus barisnya dari lapisan dan namanya dari `PENDING_PACKAGES`.
-- **Antarmuka login akun**, mati selama `accountLogin` mati.
+- **Tetap mati**, karena hanya berguna dengan layanan DeepSeek, mengirim data ke sana, atau digantikan rute TTOken Gateway: provider resmi DeepSeek dan pendukungnya, rute model akun DeepSeek, unggahan log sesi, pencarian native DeepSeek, impor chat dari situs DeepSeek, berbagi sesi lewat server terpisah, skill lencana DSH, dan halaman pengaturan pencarian web (pilihan penyedia dan cara bayarnya khusus DeepSeek).
+- **Mati sampai server TTOken siap**: analitik. Alamat bawaannya adalah kolektor DeepSeek. Begitu diarahkan, hapus barisnya dari lapisan dan namanya dari `PENDING_PACKAGES`.
+- **Antarmuka login akun** (selama `accountLogin` mati) dan **pencarian web** (selama `webSearch` mati).
 
 Layanan akun (`deepseek-account`) selalu menyala tetapi tidak didaftar di halaman Plugins: tanpa layanan itu layar sambutan gagal membaca status akun dan aplikasi gagal saat mulai.
 

@@ -292,6 +292,83 @@ copyAssets('ikon', [
   ['ttoken/icons/tray-windows.ico', 'apps/desktop/resources/tray-windows.ico'],
 ])
 
+// 9. Gambar merek installer, layar sambutan, dan favicon. Aset upstream memuat
+//    logo resmi DeepSeek Harness, yang tidak boleh dipakai produk turunan.
+//    Sumbernya dibangun oleh ttoken/installer/generate-brand-assets.py.
+copyAssets('gambar-installer', [
+  ['ttoken/installer/brand.png', 'apps/desktop/installer/assets/brand.png'],
+  ['ttoken/installer/brand-2x.png', 'apps/desktop/installer/assets/brand-2x.png'],
+  ['ttoken/installer/brand-dark.png', 'apps/desktop/installer/assets/brand-dark.png'],
+  ['ttoken/installer/brand-dark-2x.png', 'apps/desktop/installer/assets/brand-dark-2x.png'],
+  ['ttoken/installer/uninstaller-sidebar.png', 'apps/desktop/installer/assets/uninstaller-sidebar.png'],
+])
+copyAssets('merek-sambutan', [
+  ['ttoken/renderer/welcome-brand.svg', 'apps/desktop/renderer/assets/welcome-brand.svg'],
+])
+copyAssets('favicon', [
+  ['ttoken/web/favicon.svg', 'apps/web/public/favicon.svg'],
+  ['ttoken/web/favicon-dark.svg', 'apps/web/public/favicon-dark.svg'],
+])
+
+// 10. Nama penerbit di metadata .exe, serta kunci registry dan nama mutex perintah PATH.
+editFile({
+  name: 'penerbit',
+  path: 'apps/desktop/package.json',
+  pairs: [[`"name": "${upstream.publisher}"`, `"name": "${brand.publisher}"`]],
+})
+replaceTokens({
+  name: 'kunci-registry',
+  scopes: ['apps/desktop'],
+  pairs: [[upstream.registryKey, brand.registryKey]],
+})
+
+// 11. Layar sambutan meminta API key TTOken Gateway, bukan key resmi DeepSeek,
+//     dan tidak menawarkan login akun DeepSeek.
+editFile({
+  name: 'sambutan-kredensial',
+  path: 'apps/desktop/src/welcome-backend.ts',
+  pairs: [[
+    `    const official: unknown = settings.namespaces.find((item: unknown) => record(item) && item.ns === 'llm-deepseek')
+    if (official === undefined) return { settings: { namespaces: settings.namespaces }, ref: undefined }
+    if (!record(official) || !record(official.value) || typeof official.value.apiKeyEnv !== 'string') {
+      throw new Error('desktop welcome: missing official DeepSeek credential reference')
+    }
+    return { settings: { namespaces: settings.namespaces }, ref: official.value.apiKeyEnv }
+`,
+    `    const gateway: unknown = settings.namespaces.find((item: unknown) => record(item) && item.ns === 'llm-pi-ai')
+    const route: unknown = record(gateway) && record(gateway.value) && record(gateway.value.providers) ? gateway.value.providers.ttoken : undefined
+    if (route === undefined) return { settings: { namespaces: settings.namespaces }, ref: undefined }
+    if (!record(route) || typeof route.apiKeyEnv !== 'string') {
+      throw new Error('desktop welcome: missing TTOken Gateway credential reference')
+    }
+    return { settings: { namespaces: settings.namespaces }, ref: route.apiKeyEnv }
+`,
+  ]],
+})
+editFile({
+  name: 'sambutan-tombol',
+  path: 'apps/desktop/src/client/WelcomePage.tsx',
+  pairs: [
+    [`<button id="sign-in" className="primary" type="button" onClick=`, `<button id="sign-in" className="primary" type="button" hidden onClick=`],
+    [`id="api-key" className="secondary"`, `id="api-key" className="primary"`],
+    [`<button id="back-to-login" className="back" type="button" disabled={busy}`, `<button id="back-to-login" className="back" type="button" hidden disabled={busy}`],
+  ],
+})
+replaceTokens({
+  name: 'sambutan-teks',
+  scopes: ['apps/desktop'],
+  pairs: [
+    ['Configure official DeepSeek models to start using Harness', 'Add your TTOken Gateway API key to start using TTOken Code'],
+    ['配置 DeepSeek 官方模型，即可开始使用', '添加 TTOken Gateway API 密钥，即可开始使用'],
+    ['公式のDeepSeekモデルを設定してHarnessを使い始めましょう', 'TTOken GatewayのAPIキーを追加してTTOken Codeを使い始めましょう'],
+    ['Configura los modelos oficiales DeepSeek para empezar a utilizar Harness', 'Añade tu clave de API de TTOken Gateway para empezar a usar TTOken Code'],
+    ['Configurez les modèles DeepSeek officiels pour commencer à utiliser Harness', 'Ajoutez votre clé API TTOken Gateway pour commencer à utiliser TTOken Code'],
+    ['Konfigurieren Sie offizielle DeepSeek-Modelle für die Verwendung von Harness', 'Fügen Sie Ihren TTOken-Gateway-API-Schlüssel hinzu, um TTOken Code zu verwenden'],
+    ['Настройте официальные модели DeepSeek, чтобы начать использовать Harness.', 'Добавьте API-ключ TTOken Gateway, чтобы начать работу с TTOken Code.'],
+    ['Configure modelos DeepSeek oficiais para começar a usar o Harness', 'Adicione sua chave de API do TTOken Gateway para começar a usar o TTOken Code'],
+  ],
+})
+
 for (const line of report) console.log(line)
 if (failures.length > 0) {
   for (const line of failures) console.error(`GAGAL  ${line}`)

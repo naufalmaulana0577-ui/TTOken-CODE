@@ -72,12 +72,13 @@ export function connectDesktopWelcome(
   const settingsAndReference = async () => {
     const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })
     if (!record(settings) || !Array.isArray(settings.namespaces)) throw new Error('desktop welcome: missing settings namespaces')
-    const official: unknown = settings.namespaces.find((item: unknown) => record(item) && item.ns === 'llm-deepseek')
-    if (official === undefined) return { settings: { namespaces: settings.namespaces }, ref: undefined }
-    if (!record(official) || !record(official.value) || typeof official.value.apiKeyEnv !== 'string') {
-      throw new Error('desktop welcome: missing official DeepSeek credential reference')
+    const gateway: unknown = settings.namespaces.find((item: unknown) => record(item) && item.ns === 'llm-pi-ai')
+    const route: unknown = record(gateway) && record(gateway.value) && record(gateway.value.providers) ? gateway.value.providers.ttoken : undefined
+    if (route === undefined) return { settings: { namespaces: settings.namespaces }, ref: undefined }
+    if (!record(route) || typeof route.apiKeyEnv !== 'string') {
+      throw new Error('desktop welcome: missing TTOken Gateway credential reference')
     }
-    return { settings: { namespaces: settings.namespaces }, ref: official.value.apiKeyEnv }
+    return { settings: { namespaces: settings.namespaces }, ref: route.apiKeyEnv }
   }
   const localePreference = (namespaces: unknown[]): string | null => {
     const locale: unknown = namespaces.find((item: unknown) => record(item) && item.ns === 'locale')

@@ -10,6 +10,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 | `apply-brand.mjs` | Menerapkan semua perbedaan ke pohon sumber. Aman dijalankan berulang |
 | `layer/cordis.patch.yml` | Lapisan Cordis: rute TTOken Gateway, model bawaan, telemetri upstream dimatikan |
 | `icons/` | Ikon aplikasi dan tray, dirender dari `ttoken-code-app-icon.svg` di repo TTOken |
+| `installer/`, `renderer/`, `web/` | Gambar merek installer, merek layar sambutan, dan favicon |
 | `NOTICE.md` | Atribusi ke DeepSeek Harness |
 
 ## Yang diubah oleh `apply-brand.mjs`
@@ -22,6 +23,9 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 6. **Lapisan distribusi** ditanam ke Host desktop (`apps/desktop-host/src/ttoken-layer.ts`, file hasil) dan dipasang sebagai overlay terakhir.
 7. **Kebijakan update wajib** hanya untuk build bertanda tangan. Upstream sudah begitu di macOS; Windows disamakan supaya installer uji bisa dibangun sebelum layanan kebijakan milik TTOken ada.
 8. **Ikon**.
+9. **Gambar merek** installer, layar sambutan, dan favicon. Aset upstream memuat logo resmi DeepSeek Harness. Penggantinya dibangun oleh `installer/generate-brand-assets.py` dari mark TTOken Code dan font Bricolage Grotesque milik web TTOken.
+10. **Penerbit** di metadata `.exe`, serta kunci registry dan nama mutex perintah PATH.
+11. **Layar sambutan** meminta API key TTOken Gateway dan tidak menawarkan login akun DeepSeek.
 
 ## Alur kerja
 
@@ -74,8 +78,8 @@ Urut dari yang paling menghalangi rilis:
 
 1. **Layanan kebijakan update.** Build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Sebelum rilis publik perlu endpoint di domain TTOken.
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
-3. **Login akun DeepSeek** masih terpasang dan masih muncul di antarmuka. Perlu diganti login akun TTOken atau disembunyikan.
-4. **Antarmuka web di dalam jendela** (`packages/client`, `packages/web`, `apps/web`) masih menyebut nama upstream dan memakai tema upstream. Ini dikerjakan bersama reskin.
+3. **Login akun DeepSeek** sudah disembunyikan dari layar sambutan, tetapi plugin akunnya masih terpasang dan masih bisa muncul di pengaturan. Perlu diganti login akun TTOken.
+4. **Antarmuka web di dalam jendela** (`packages/client`, `packages/web`, `apps/web`) masih menyebut nama upstream, memakai tema upstream, dan memuat maskot upstream (`running-whale@2x.png` serta logo yang ditulis langsung di komponen). Ini dikerjakan bersama reskin dan wajib selesai sebelum dibagikan ke user.
 5. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.
 6. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
 7. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.

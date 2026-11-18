@@ -1,14 +1,21 @@
 {
   "productName": "TTOken Code",
+  "publisher": "TTOKEN ONE FOR ALL",
+  "registryKey": "TTOkenCode",
   "appId": "dev.ttoken.code",
   "protocolScheme": "ttoken-code",
   "artifactPrefix": "ttoken-code",
   "homeDirName": ".ttoken-code",
   "upstream": {
     "productName": "DeepSeek Harness",
-    "appIds": ["com.deepseek.harness", "com.deepseek.dsh"],
+    "appIds": [
+      "com.deepseek.harness",
+      "com.deepseek.dsh"
+    ],
     "protocolScheme": "dsh",
     "artifactPrefix": "deepseek-harness",
-    "homeDirName": ".dsh"
+    "homeDirName": ".dsh",
+    "publisher": "Hangzhou DeepSeek Artificial Intelligence Co., Ltd.",
+    "registryKey": "DeepSeekHarness"
   }
 }

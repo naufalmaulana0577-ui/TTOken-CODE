@@ -37,20 +37,22 @@
 
 .del::before {
   content: '- ';
+  color: var(--dsw-alias-file-diff-deleted-marker);
 }
 
 .del {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-code-diff-deleted);
   box-shadow: inset 3px 0 0 var(--dsw-alias-state-error-primary);
 }
 
 .add::before {
   content: '+ ';
+  color: var(--dsw-alias-file-diff-added-marker);
 }
 
 .add {
-  color: var(--dsw-alias-state-success-primary);
+  color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-code-diff-added);
   box-shadow: inset 3px 0 0 var(--dsw-alias-state-success-primary);
 }

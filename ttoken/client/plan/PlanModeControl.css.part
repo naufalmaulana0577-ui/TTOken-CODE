@@ -1,0 +1,61 @@
+
+/* TTOken Code: the composer's mode menu trigger, reading Agent mode or Plan mode. */
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .mode:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.mode[data-plan] {
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-primary);
+}
+
+.mode:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.mode:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.modeChevron {
+  display: inline-flex;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.modeChevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.note {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}

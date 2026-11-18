@@ -33,6 +33,25 @@
   cursor: default;
 }
 
+/* TTOken Code: the permission control is a chip in the composer's option row,
+   with the same size and fill as the folder and branch chips. */
+.trigger {
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border-radius: 12px;
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+@media (hover: hover) {
+  .trigger:hover:not(:disabled) {
+    background: var(--dsw-alias-button-ghost-active-hover);
+  }
+}
+
 .triggerIcon {
   display: inline-flex;
   flex: 0 0 auto;

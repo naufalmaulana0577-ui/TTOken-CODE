@@ -18,6 +18,12 @@ export const zh = {
   'chip.on.aria': '计划模式已开启，按下关闭',
   'chip.on.title': '计划模式已开启 — 点击关闭（/plan off）',
   'chip.exitFailed': '退出计划模式失败',
+  'mode.agent': '智能体模式',
+  'mode.plan': '计划模式',
+  'mode.agent.note': '读取、修改并运行命令',
+  'mode.plan.note': '先写计划，不做修改',
+  'mode.aria': '模式：{name}',
+  'mode.enterFailed': '进入计划模式失败',
 } satisfies Record<string, string>
 
 /** The plan namespace key union. */
@@ -41,6 +47,12 @@ export const en = {
   'chip.on.aria': 'Plan mode on, press to turn off',
   'chip.on.title': 'Plan mode on — click to turn off (/plan off)',
   'chip.exitFailed': 'Failed to exit plan mode',
+  'mode.agent': 'Agent mode',
+  'mode.plan': 'Plan mode',
+  'mode.agent.note': 'Reads, edits and runs commands',
+  'mode.plan.note': 'Writes a plan first, changes nothing',
+  'mode.aria': 'Mode: {name}',
+  'mode.enterFailed': 'Failed to enter plan mode',
 } satisfies Record<PlanKey, string>
 
 /** Japanese copy, checked against the English keys. */
@@ -61,6 +73,12 @@ export const ja = {
   'chip.on.aria': '計画モードはオンです。押すとオフになります',
   'chip.on.title': '計画モードはオンです — クリックでオフ (/plan off)',
   'chip.exitFailed': '計画モードを終了できませんでした',
+  'mode.agent': 'エージェントモード',
+  'mode.plan': '計画モード',
+  'mode.agent.note': '読み取り、編集、コマンド実行',
+  'mode.plan.note': '先に計画を書き、変更はしない',
+  'mode.aria': 'モード: {name}',
+  'mode.enterFailed': '計画モードに入れませんでした',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -81,6 +99,12 @@ export const es = {
   'chip.on.aria': 'Modo plan activado, presione para apagar',
   'chip.on.title': 'Modo de planificación activado: haga clic para desactivar (/plan off)',
   'chip.exitFailed': 'No se pudo salir del modo de plan',
+  'mode.agent': 'Modo agente',
+  'mode.plan': 'Modo plan',
+  'mode.agent.note': 'Lee, edita y ejecuta comandos',
+  'mode.plan.note': 'Primero escribe un plan, no cambia nada',
+  'mode.aria': 'Modo: {name}',
+  'mode.enterFailed': 'No se pudo entrar en el modo de plan',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -101,6 +125,12 @@ export const fr = {
   'chip.on.aria': 'Mode Plan activé, appuyez pour désactiver',
   'chip.on.title': 'Mode Plan activé — cliquez pour désactiver (/plan off)',
   'chip.exitFailed': 'Échec de la sortie du mode Plan',
+  'mode.agent': 'Mode agent',
+  'mode.plan': 'Mode Plan',
+  'mode.agent.note': 'Lit, modifie et exécute des commandes',
+  'mode.plan.note': 'Rédige d’abord un plan, ne modifie rien',
+  'mode.aria': 'Mode : {name}',
+  'mode.enterFailed': 'Impossible d’activer le mode Plan',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -121,6 +151,12 @@ export const de = {
   'chip.on.aria': 'Planmodus ein, zum Ausschalten drücken',
   'chip.on.title': 'Planmodus ein – zum Ausschalten klicken (/plan off)',
   'chip.exitFailed': 'Der Planmodus konnte nicht beendet werden',
+  'mode.agent': 'Agentenmodus',
+  'mode.plan': 'Planmodus',
+  'mode.agent.note': 'Liest, bearbeitet und führt Befehle aus',
+  'mode.plan.note': 'Schreibt zuerst einen Plan, ändert nichts',
+  'mode.aria': 'Modus: {name}',
+  'mode.enterFailed': 'Der Planmodus konnte nicht gestartet werden',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -141,6 +177,12 @@ export const ru = {
   'chip.on.aria': 'Режим планирования включен. Нажмите, чтобы выключить.',
   'chip.on.title': 'Режим планирования включен — нажмите, чтобы выключить (/plan off)',
   'chip.exitFailed': 'Не удалось выйти из режима планирования.',
+  'mode.agent': 'Режим агента',
+  'mode.plan': 'Режим планирования',
+  'mode.agent.note': 'Читает, изменяет и выполняет команды',
+  'mode.plan.note': 'Сначала пишет план, ничего не меняет',
+  'mode.aria': 'Режим: {name}',
+  'mode.enterFailed': 'Не удалось включить режим планирования.',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -161,4 +203,10 @@ export const pt = {
   'chip.on.aria': 'Modo de planejamento ativado, pressione para desligar',
   'chip.on.title': 'Modo de planejamento ativado – clique para desligar (/plan off)',
   'chip.exitFailed': 'Falha ao sair do modo de plano',
+  'mode.agent': 'Modo agente',
+  'mode.plan': 'Modo de planejamento',
+  'mode.agent.note': 'Lê, edita e executa comandos',
+  'mode.plan.note': 'Escreve um plano primeiro, não altera nada',
+  'mode.aria': 'Modo: {name}',
+  'mode.enterFailed': 'Falha ao entrar no modo de plano',
 } satisfies Record<keyof typeof en, string>

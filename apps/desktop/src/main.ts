@@ -244,7 +244,7 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
  * @returns the sidebar fill hex for the effective application color scheme.
  */
 function chromeFallbackFill(): string {
-  return nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb'
+  return nativeTheme.shouldUseDarkColors ? '#111111' : '#f3f2ee'
 }
 
 /**
@@ -1209,8 +1209,7 @@ async function main(): Promise<void> {
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
     { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
-    ...process.platform === 'darwin' || process.platform === 'win32'
-      ? [] : [], // TTOken Code: the upstream-named command manager is not offered.
+    // TTOken Code: the upstream-named command manager is not offered.
     { type: 'separator' },
     ...development ? [
       { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },

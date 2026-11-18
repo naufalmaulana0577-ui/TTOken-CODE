@@ -48,6 +48,7 @@ import { ConversationSession, ConversationSessionHeader } from './skeleton/Conve
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { installStopShortcut } from './stop-shortcut.ts'
+import { installTtokenComposer } from './ttoken/install.ts'
 import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { createViewPins } from './view-pins.ts'
 import { en, ja, es, fr, de, ru, pt, NS, zh, type ConversationKey } from './locales.ts'
@@ -601,4 +602,6 @@ export function apply(ctx: Context, config: SyncedConfig<ConversationConfig>): v
   })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
+  // TTOken Code: working folder and Git branch chips above the draft.
+  installTtokenComposer(ctx)
 }

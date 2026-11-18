@@ -27,6 +27,7 @@ import { createAppearanceRowStore, createFontRowStore } from './settings-store.t
 import { ICON_SYMBOLS, type IconSymbolId } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installIconSprite, type IconReplacements } from './icon-sprite.ts'
 import { installThemeStyles } from './styles.ts'
+import { TTOKEN_PALETTE, TTOKEN_PALETTE_SOURCE } from './ttoken-palette.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type ThemeKey } from './locales.ts'
 import {
   DEFAULT_FONT_SIZES, DEFAULT_PREFERENCE, FONT_FAMILY_FIELDS, FONT_ROLES, FONT_SIZE_SPECS,
@@ -606,6 +607,8 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-theme: settings row dictionaries')
   const host = ctx.configForms.get<ThemeSettings>(THEME_SETTINGS_NAMESPACE)
   const theme = new ThemeRuntime(ctx, host)
+  // TTOken Code: the distribution palette is the first override layer, so a registered theme can still restyle it.
+  ctx.effect(() => theme.overrideTokens(TTOKEN_PALETTE_SOURCE, TTOKEN_PALETTE), 'ui-theme: TTOken Code palette')
   ctx.provide('theme', theme)
   installIconSprite(ctx, theme.getTheme().active.icons)
 

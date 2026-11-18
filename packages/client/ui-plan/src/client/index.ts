@@ -46,6 +46,11 @@ export interface PlanChipInjected {
    * @returns null on admitted execution; a user-visible failure line otherwise.
    */
   exitPlanMode: () => Promise<string | null>
+  /**
+   * Enter plan mode by executing /plan without a message.
+   * @returns null on admitted execution; a user-visible failure line otherwise.
+   */
+  enterPlanMode: () => Promise<string | null>
 }
 
 /** Services for plan controls, Conversation projection, and resource navigation. */
@@ -122,6 +127,12 @@ export function apply(ctx: ClientContext): void {
         const result = await ctx.remote.commands.execute(sessionId, '/plan off', [])
         if (!result.ok) return `${result.error.message} (${result.error.code})`
         if (result.value === undefined) return 'unknown command: /plan off'
+        return null
+      },
+      enterPlanMode: async () => {
+        const result = await ctx.remote.commands.execute(sessionId, '/plan', [])
+        if (!result.ok) return `${result.error.message} (${result.error.code})`
+        if (result.value === undefined) return 'unknown command: /plan'
         return null
       },
     }),

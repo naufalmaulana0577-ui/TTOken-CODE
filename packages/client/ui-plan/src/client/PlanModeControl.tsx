@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconCloseCircleFillRegular, IconPlanOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineRegular, IconPlanOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.plan seat and
 // its {locked} owner share).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -12,14 +14,15 @@ export type PlanChipProps =
   PropsRuntime<'conversation.input.plan'> & InjectFace<PlanChipInjected> & PropsLocale<'plan'>
 
 /**
- * Plan-mode status over the host-computed `plan` projection. The chip renders
- * only while the effective target is plan mode (`pending ? !active : active`
- * — a folded host value, not client optimism) and executes /plan off.
+ * Mode menu over the host-computed `plan` projection: the trigger names the
+ * effective target (`pending ? !active : active`, a folded host value, not
+ * client optimism), and choosing the other mode executes /plan or /plan off.
  */
-export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipProps) {
+export function PlanChip({ useProjection, locked, exitPlanMode, enterPlanMode, t }: PlanChipProps) {
   const plan = useProjection('plan')
-  const [leaving, setLeaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [error, setError] = useState<{ entering: boolean; detail: string } | null>(null)
   const aliveRef = useRef(true)
 
   useEffect(() => {
@@ -31,40 +34,70 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
 
   if (plan === undefined) return null
   const target = plan.pending ? !plan.active : plan.active
-  if (!target) return null
 
-  const off = (): void => {
-    // No leaving/locked guard: both disable the button, so no click arrives.
-    setLeaving(true)
+  const run = (entering: boolean): void => {
+    // No switching/locked guard: both disable the trigger, so no selection arrives.
+    setSwitching(true)
     setError(null)
-    void exitPlanMode().then((failure) => {
+    void (entering ? enterPlanMode() : exitPlanMode()).then((failure) => {
       if (!aliveRef.current) return
-      setLeaving(false)
-      setError(failure)
+      setSwitching(false)
+      setError(failure === null ? null : { entering, detail: failure })
     }, (reason: unknown) => {
       if (!aliveRef.current) return
-      setLeaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setSwitching(false)
+      setError({ entering, detail: reason instanceof Error ? reason.message : String(reason) })
     })
   }
 
+  const option = (name: string, note: string): ReactNode => (
+    <span className={css.option}>
+      <span>{name}</span>
+      <span className={css.note}>{note}</span>
+    </span>
+  )
+  const items: MenuEntry[] = [
+    { id: 'agent', label: option(t('mode.agent'), t('mode.agent.note')) },
+    { id: 'plan', label: option(t('mode.plan'), t('mode.plan.note')), icon: <IconPlanOutlineRegular size={16} /> },
+  ]
+  const choose = (id: string): void => {
+    setOpen(false)
+    if (id === 'plan' && !target) run(true)
+    if (id === 'agent' && target) run(false)
+  }
+  const name = target ? t('mode.plan') : t('mode.agent')
+
   return (
     <span className={css.wrap}>
-      <button
-        type="button"
-        className={css.chip}
-        aria-label={t('chip.on.aria')}
-        title={t('chip.on.title')}
-        disabled={locked || leaving}
-        onClick={off}
-      >
-        <span className={css.glyph} aria-hidden>
-          <IconPlanOutlineRegular className={css.restGlyph} size={14} />
-          <IconCloseCircleFillRegular className={css.hoverGlyph} size={14} />
+      <Menu
+        open={open}
+        items={items}
+        selectedId={target ? 'plan' : 'agent'}
+        onSelect={choose}
+        onClose={() => { setOpen(false) }}
+        side="top"
+        portal
+        anchor={
+          <button
+            type="button"
+            className={css.mode}
+            data-plan={target ? '' : undefined}
+            aria-label={t('mode.aria', { name })}
+            title={target ? t('chip.on.title') : undefined}
+            disabled={locked || switching}
+            onClick={() => { setOpen(!open) }}
+          >
+            {target && <IconPlanOutlineRegular size={14} />}
+            {name}
+            <span className={css.modeChevron} aria-hidden><IconChevronDownOutlineRegular /></span>
+          </button>
+        }
+      />
+      {error !== null && (
+        <span className={css.error} role="status" title={error.detail}>
+          {t(error.entering ? 'mode.enterFailed' : 'chip.exitFailed')}
         </span>
-        {t('chip.label')}
-      </button>
-      {error !== null && <span className={css.error} role="status" title={error}>{t('chip.exitFailed')}</span>}
+      )}
     </span>
   )
 }

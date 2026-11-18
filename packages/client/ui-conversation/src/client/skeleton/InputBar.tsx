@@ -450,6 +450,18 @@ export const InputBar = memo(function InputBar({
           {notice.text}
         </div>
       )}
+      {sessionId === undefined ? null : (
+        <div className={css.ttokenChips} data-ttoken-chips>
+          <div className={css.ttokenChipList}>
+            {renderSlot('conversation.input.permission', { locked })}
+            {input === undefined || variant !== 'composer' ? null : renderSlot('conversation.input.left', {})}
+          </div>
+          <svg className={css.ttokenMark} viewBox="0 0 56 48" aria-hidden>
+            <path d="M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z" fill="currentColor" />
+            <path d="M36 37H46A4 4 0 0 1 50 41V41A4 4 0 0 1 46 45H36A4 4 0 0 1 32 41V41A4 4 0 0 1 36 37Z" fill="currentColor" />
+          </svg>
+        </div>
+      )}
       {/* Trigger clicks land on the card, not the editor: the toolbar row's
           disabled controls swallow clicks otherwise (the CSS state disarms
           their pointer events), so the WHOLE capsule is the pick target.
@@ -486,60 +498,23 @@ export const InputBar = memo(function InputBar({
             thing that scrolls. Chips are decorator portals inside the same
             surface, so wrapping, caret geometry, and scrolling are the
             browser's own. */}
-        <DraftEditor
-          classNames={css}
-          editor={editor}
-          scrollRef={scrollRef}
-          editable={editable}
-          editorDisabled={editorDisabled}
-          phase={input?.phase ?? 'inert'}
-          placeholderText={placeholderText}
-          ariaLabel={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
-          workspaceTrigger={workspaceTrigger}
-          workspacePickerOpen={workspacePickerOpen}
-          onWorkspaceKeyDown={onWorkspaceKeyDown}
-          hint={hint}
-          showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
-        />
-        <div ref={rowRef} className={css.row}>
-          <div className={css.tools} hidden={activity}>
-            <Tooltip label={t('input.commands')} side="top" delayMs={500} portal>
-              <button
-                type="button"
-                className={css.add}
-                aria-label={t('input.commands')}
-                aria-haspopup="listbox"
-                aria-expanded={commandMenuOpen}
-                disabled={locked || toggleCommandMenu === undefined}
-                onMouseDown={keepFocus}
-                onClick={onToggleCommandMenu}
-              >
-                <IconPlusOutlineMedium size={14} />
-              </button>
-            </Tooltip>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              disabled={!canAcceptDrop || subagent !== null}
-              hidden
-              onChange={onPickFiles}
-            />
-            <div className={css.modes}>
-              {sessionId === undefined ? null : renderSlot('conversation.input.permission', { locked })}
-              {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}
-            </div>
-            {input === undefined || sessionId === undefined
-              ? null
-              : renderSlot('conversation.input.left', {})}
-          </div>
-          <div className={clsx(css.trailing, activity && css.trailingActive)}>
-            <div className={css.standardControls} hidden={activity}>
-              {input === undefined || sessionId === undefined
-                ? null
-                : renderSlot('conversation.input.right', {})}
-              {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-            </div>
+        <div className={css.ttokenEditorRow}>
+          <DraftEditor
+            classNames={css}
+            editor={editor}
+            scrollRef={scrollRef}
+            editable={editable}
+            editorDisabled={editorDisabled}
+            phase={input?.phase ?? 'inert'}
+            placeholderText={placeholderText}
+            ariaLabel={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
+            workspaceTrigger={workspaceTrigger}
+            workspacePickerOpen={workspacePickerOpen}
+            onWorkspaceKeyDown={onWorkspaceKeyDown}
+            hint={hint}
+            showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
+          />
+          <div className={clsx(css.ttokenSend, activity && css.ttokenSendActive)}>
             {input === undefined || sessionId === undefined ? null : <div className={activity ? css.activityExpanded : css.activity}>
               {renderSlot('conversation.input.activity', { locked, onActiveChange: setActivity })}
             </div>}
@@ -584,12 +559,50 @@ export const InputBar = memo(function InputBar({
                     <IconTriangleRightFillRegular size={16} className={css.continueIcon} />
                   ) : (
                     <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                      <path d="M8.3125 0.980183C8.66767 1.0531 8.97902 1.20418 9.2627 1.43233C9.48724 1.61297 9.73029 1.85793 9.97949 2.10714L14.707 6.83468L13.293 8.24874L9 3.95577V15.0417H7V3.95577L2.70703 8.24874L1.29297 6.83468L6.02051 2.10714C6.26971 1.85793 6.51277 1.61297 6.7373 1.43233C6.97662 1.23986 7.28445 1.04402 7.6875 0.980183C7.8973 0.947006 8.1031 0.95516 8.3125 0.980183Z" fill="currentColor" />
+                      <path d="M13 3v5.25A1.75 1.75 0 0 1 11.25 10H3.75" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M6.5 7.25 3.75 10l2.75 2.75" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
                 </button>
               </Tooltip>
             )}
+          </div>
+        </div>
+      </div>
+      <div ref={rowRef} className={clsx(css.row, css.ttokenFooter)}>
+        <div className={css.tools} hidden={activity}>
+          <Tooltip label={t('input.commands')} side="top" delayMs={500} portal>
+            <button
+              type="button"
+              className={css.add}
+              aria-label={t('input.commands')}
+              aria-haspopup="listbox"
+              aria-expanded={commandMenuOpen}
+              disabled={locked || toggleCommandMenu === undefined}
+              onMouseDown={keepFocus}
+              onClick={onToggleCommandMenu}
+            >
+              <IconPlusOutlineMedium size={14} />
+            </button>
+          </Tooltip>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            disabled={!canAcceptDrop || subagent !== null}
+            hidden
+            onChange={onPickFiles}
+          />
+          <div className={css.modes}>
+            {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}
+          </div>
+        </div>
+        <div className={css.trailing}>
+          <div className={css.standardControls} hidden={activity}>
+            {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
+            {input === undefined || sessionId === undefined
+              ? null
+              : renderSlot('conversation.input.right', {})}
           </div>
         </div>
       </div>

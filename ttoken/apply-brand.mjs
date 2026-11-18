@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -136,6 +136,36 @@ function editFile(rule) {
 }
 
 /**
+ * Ganti satu wilayah file, dari penanda awal sampai tepat sebelum penanda akhir, dengan isi baru.
+ *
+ * Wilayah dianggap sudah diterapkan bila isi baru sudah ada di file. Kedua penanda
+ * harus muncul tepat sekali dan berurutan; isi baru tidak boleh memuat penanda awal.
+ * Penanda akhir kosong berarti wilayah berlanjut sampai akhir file.
+ * @param {{ name: string, path: string, start: string, end: string, content: string }} rule Aturan penggantian.
+ * @returns {void}
+ */
+function replaceRegion(rule) {
+  const absolute = join(ROOT, rule.path)
+  const text = readFileSync(absolute, 'utf8')
+  if (text.includes(rule.content)) {
+    report.push(`${rule.name}: sudah diterapkan`)
+    return
+  }
+  const from = text.indexOf(rule.start)
+  const to = rule.end === '' ? text.length : text.indexOf(rule.end)
+  if (count(text, rule.start) !== 1 || (rule.end !== '' && count(text, rule.end) !== 1) || to < from) {
+    failures.push(`${rule.name}: penanda wilayah tidak cocok di ${rule.path}; upstream berubah, perbarui aturannya`)
+    return
+  }
+  if (CHECK) {
+    failures.push(`${rule.name}: ${rule.path} belum disunting`)
+    return
+  }
+  if (!DRY) writeFileSync(absolute, text.slice(0, from) + rule.content + text.slice(to))
+  report.push(`${rule.name}: wilayah diganti${DRY ? ' (rencana)' : ''}`)
+}
+
+/**
  * Tulis sebuah file hasil bila isinya berbeda.
  * @param {string} name Nama aturan.
  * @param {string} path Path relatif tujuan.
@@ -153,7 +183,10 @@ function writeGenerated(name, path, content) {
     failures.push(`${name}: ${path} tidak sama dengan sumbernya`)
     return
   }
-  if (!DRY) writeFileSync(absolute, content)
+  if (!DRY) {
+    mkdirSync(dirname(absolute), { recursive: true })
+    writeFileSync(absolute, content)
+  }
   report.push(`${name}: ${path} ditulis${DRY ? ' (rencana)' : ''}`)
 }
 
@@ -699,8 +732,8 @@ editFile({
   name: 'menu-perintah-cli',
   path: 'apps/desktop/src/main.ts',
   pairs: [[
-    `      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],\n`,
-    `      ? [] : [], // TTOken Code: the upstream-named command manager is not offered.\n`,
+    `    ...process.platform === 'darwin' || process.platform === 'win32'\n      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],\n`,
+    `    // TTOken Code: the upstream-named command manager is not offered.\n`,
   ]],
 })
 
@@ -1106,6 +1139,267 @@ rebrandLocaleStrings({
   ],
   keep: [ATTRIBUTION],
   edits: [[/\bDeepSeek\b/g, 'TTOken']],
+})
+
+/**
+ * Baca potongan sumber dari `ttoken/client/`.
+ * @param {string} path Path relatif terhadap `ttoken/client/`.
+ * @returns {string} Isi berkas.
+ */
+function clientPart(path) {
+  return readFileSync(join(ROOT, 'ttoken', 'client', path), 'utf8')
+}
+
+// 22. Palet TTOken Code dari desain desktop: permukaan putih hangat dengan tombol
+//     hitam di skema terang, permukaan hitam netral di skema gelap. Dipasang
+//     sebagai satu lapisan override token, jadi semua komponen ikut tanpa CSS per komponen.
+writeGenerated('palet', 'packages/client/ui-theme/src/client/ttoken-palette.ts', clientPart('palette.ts'))
+editFile({
+  name: 'palet (pasang)',
+  path: 'packages/client/ui-theme/src/client/index.ts',
+  pairs: [
+    [
+      `import { installThemeStyles } from './styles.ts'\n`,
+      `import { installThemeStyles } from './styles.ts'\nimport { TTOKEN_PALETTE, TTOKEN_PALETTE_SOURCE } from './ttoken-palette.ts'\n`,
+    ],
+    [
+      `  const theme = new ThemeRuntime(ctx, host)\n`,
+      `  const theme = new ThemeRuntime(ctx, host)\n  // TTOken Code: the distribution palette is the first override layer, so a registered theme can still restyle it.\n  ctx.effect(() => theme.overrideTokens(TTOKEN_PALETTE_SOURCE, TTOKEN_PALETTE), 'ui-theme: TTOken Code palette')\n`,
+    ],
+  ],
+})
+
+// 23. Fon desain: Inter untuk teks, JetBrains Mono untuk kode. Keduanya ikut
+//     dibundel (lisensi SIL OFL) supaya Windows yang tidak memasangnya tampil sama.
+const FONT_FILES = [
+  'inter-latin-wght.woff2', 'inter-latin-ext-wght.woff2',
+  'jetbrains-mono-latin-wght.woff2', 'jetbrains-mono-latin-ext-wght.woff2',
+  'Inter-OFL.txt', 'JetBrainsMono-OFL.txt',
+]
+copyAssets('fon (berkas)', FONT_FILES.map(file => [`ttoken/fonts/${file}`, `packages/client/ui-theme/src/styles/${file}`]))
+const LATIN = 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD'
+const LATIN_EXT = 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF'
+const fontFace = (family, weights, file, range) => `
+@font-face {
+  font-family: '${family}';
+  font-style: normal;
+  font-weight: ${weights};
+  font-display: swap;
+  src: url(./${file}) format('woff2');
+  unicode-range: ${range};
+}
+`
+editFile({
+  name: 'fon (font-face)',
+  path: 'packages/client/ui-theme/src/styles/brand-font.css',
+  pairs: [[
+    `  src: url(./montserrat-medium.woff2) format('woff2');\n}\n`,
+    `  src: url(./montserrat-medium.woff2) format('woff2');\n}\n`
+      + `\n/* TTOken Code text and code fonts; SIL Open Font License in Inter-OFL.txt and JetBrainsMono-OFL.txt. */`
+      + fontFace('Inter', '100 900', 'inter-latin-wght.woff2', LATIN)
+      + fontFace('Inter', '100 900', 'inter-latin-ext-wght.woff2', LATIN_EXT)
+      + fontFace('JetBrains Mono', '100 800', 'jetbrains-mono-latin-wght.woff2', LATIN)
+      + fontFace('JetBrains Mono', '100 800', 'jetbrains-mono-latin-ext-wght.woff2', LATIN_EXT),
+  ]],
+})
+editFile({
+  name: 'fon (tumpukan bawaan)',
+  path: 'packages/client/ui-theme/src/styles/base.css',
+  pairs: [
+    [`  --dsh-font-family-text-default: -apple-system,`, `  --dsh-font-family-text-default: 'Inter', -apple-system,`],
+    [`  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code',`, `  --dsh-font-family-code-default: 'JetBrains Mono', 'SF Mono', 'Fira Code',`],
+  ],
+})
+editFile({
+  name: 'fon (salin ke lib)',
+  path: 'packages/client/ui-theme/tsdown.config.ts',
+  pairs: [[`from: 'src/styles/{brand-font.css,montserrat-*.woff2,Montserrat-OFL.txt}',`, `from: 'src/styles/{brand-font.css,*.woff2,*-OFL.txt}',`]],
+})
+editFile({
+  name: 'fon (jendela sambutan)',
+  path: 'apps/desktop/tsdown.config.ts',
+  pairs: [[
+    `'montserrat-medium.woff2', 'Montserrat-OFL.txt']`,
+    `'montserrat-medium.woff2', 'Montserrat-OFL.txt', ${FONT_FILES.map(file => `'${file}'`).join(', ')}]`,
+  ]],
+})
+
+// 24. Composer sesuai desain desktop: chip opsi di atas kartu (izin, lalu chip
+//     plugin di `conversation.input.left`, lalu mark), tombol kirim ↵ di dalam
+//     kartu, mode dan model di bawahnya. Logika InputBar upstream tidak diubah;
+//     hanya susunan elemen dan gayanya.
+editFile({
+  name: 'composer (chip)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
+  pairs: [[
+    `      {/* Trigger clicks land on the card, not the editor: the toolbar row's\n`,
+    clientPart('composer/chips.tsx.part').replace('TTOKEN_MARK_BODY', MARK_BODY).replace('TTOKEN_MARK_BAR', MARK_BAR)
+      + `      {/* Trigger clicks land on the card, not the editor: the toolbar row's\n`,
+  ]],
+})
+replaceRegion({
+  name: 'composer (susunan)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
+  start: `        <DraftEditor\n          classNames={css}\n`,
+  end: `      <div className={css.dock} data-composer-dock>`,
+  content: clientPart('composer/row.tsx.part'),
+})
+editFile({
+  name: 'composer (gaya)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/InputBar.module.css',
+  pairs: [[
+    `.activityExpanded { flex: 1; min-width: 0; }\n`,
+    `.activityExpanded { flex: 1; min-width: 0; }\n${clientPart('composer/composer.css.part')}`,
+  ]],
+})
+setLocaleValues({
+  name: 'composer (placeholder)',
+  path: 'packages/client/ui-conversation/src/client/locales.ts',
+  key: 'placeholder.default',
+  values: [
+    '让 Code 解答，或描述一项修改', 'Ask Code or describe a change', 'Code に質問するか、変更内容を説明', 'Pregunta a Code o describe un cambio',
+    'Demandez à Code ou décrivez une modification', 'Frag Code oder beschreibe eine Änderung', 'Спросите Code или опишите изменение', 'Pergunte ao Code ou descreva uma mudança',
+  ],
+})
+
+// 24b. Menu mode di bawah composer: "Agent mode" atau "Plan mode". Upstream hanya
+//      menampilkan chip saat mode rencana aktif dan masuknya lewat /plan; di sini
+//      kedua mode dipilih dari satu menu, memakai perintah /plan dan /plan off yang sama.
+editFile({
+  name: 'mode (impor)',
+  path: 'packages/client/ui-plan/src/client/PlanModeControl.tsx',
+  pairs: [
+    [`import { useEffect, useRef, useState } from 'react'\n`, `import { useEffect, useRef, useState } from 'react'\nimport type { ReactNode } from 'react'\n`],
+    [
+      `import { IconCloseCircleFillRegular, IconPlanOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'\n`,
+      `import { IconChevronDownOutlineRegular, IconPlanOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'\nimport type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'\n`,
+    ],
+    [
+      ` * Plan-mode status over the host-computed \`plan\` projection. The chip renders\n * only while the effective target is plan mode (\`pending ? !active : active\`\n * — a folded host value, not client optimism) and executes /plan off.\n`,
+      ` * Mode menu over the host-computed \`plan\` projection: the trigger names the\n * effective target (\`pending ? !active : active\`, a folded host value, not\n * client optimism), and choosing the other mode executes /plan or /plan off.\n`,
+    ],
+  ],
+})
+replaceRegion({
+  name: 'mode (komponen)',
+  path: 'packages/client/ui-plan/src/client/PlanModeControl.tsx',
+  start: `export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipProps) {\n`,
+  end: '',
+  content: clientPart('plan/PlanChip.tsx.part'),
+})
+editFile({
+  name: 'mode (gaya)',
+  path: 'packages/client/ui-plan/src/client/PlanModeControl.module.css',
+  pairs: [[`.chip:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n`, `.chip:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n${clientPart('plan/PlanModeControl.css.part')}`]],
+})
+editFile({
+  name: 'mode (masuk rencana)',
+  path: 'packages/client/ui-plan/src/client/index.ts',
+  pairs: [
+    [
+      `  exitPlanMode: () => Promise<string | null>\n}\n`,
+      `  exitPlanMode: () => Promise<string | null>\n  /**\n   * Enter plan mode by executing /plan without a message.\n   * @returns null on admitted execution; a user-visible failure line otherwise.\n   */\n  enterPlanMode: () => Promise<string | null>\n}\n`,
+    ],
+    [
+      `        if (result.value === undefined) return 'unknown command: /plan off'\n        return null\n      },\n`,
+      `        if (result.value === undefined) return 'unknown command: /plan off'\n        return null\n      },\n      enterPlanMode: async () => {\n        const result = await ctx.remote.commands.execute(sessionId, '/plan', [])\n        if (!result.ok) return \`\${result.error.message} (\${result.error.code})\`\n        if (result.value === undefined) return 'unknown command: /plan'\n        return null\n      },\n`,
+    ],
+  ],
+})
+const MODE_COPY = {
+  zh: ['智能体模式', '计划模式', '读取、修改并运行命令', '先写计划，不做修改', '模式：{name}', '进入计划模式失败'],
+  en: ['Agent mode', 'Plan mode', 'Reads, edits and runs commands', 'Writes a plan first, changes nothing', 'Mode: {name}', 'Failed to enter plan mode'],
+  ja: ['エージェントモード', '計画モード', '読み取り、編集、コマンド実行', '先に計画を書き、変更はしない', 'モード: {name}', '計画モードに入れませんでした'],
+  es: ['Modo agente', 'Modo plan', 'Lee, edita y ejecuta comandos', 'Primero escribe un plan, no cambia nada', 'Modo: {name}', 'No se pudo entrar en el modo de plan'],
+  fr: ['Mode agent', 'Mode Plan', 'Lit, modifie et exécute des commandes', 'Rédige d’abord un plan, ne modifie rien', 'Mode : {name}', 'Impossible d’activer le mode Plan'],
+  de: ['Agentenmodus', 'Planmodus', 'Liest, bearbeitet und führt Befehle aus', 'Schreibt zuerst einen Plan, ändert nichts', 'Modus: {name}', 'Der Planmodus konnte nicht gestartet werden'],
+  ru: ['Режим агента', 'Режим планирования', 'Читает, изменяет и выполняет команды', 'Сначала пишет план, ничего не меняет', 'Режим: {name}', 'Не удалось включить режим планирования.'],
+  pt: ['Modo agente', 'Modo de planejamento', 'Lê, edita e executa comandos', 'Escreve um plano primeiro, não altera nada', 'Modo: {name}', 'Falha ao entrar no modo de plano'],
+}
+const MODE_KEYS = ['mode.agent', 'mode.plan', 'mode.agent.note', 'mode.plan.note', 'mode.aria', 'mode.enterFailed']
+{
+  const path = 'packages/client/ui-plan/src/client/locales.ts'
+  const text = readFileSync(join(ROOT, path), 'utf8')
+  // Setiap baris 'chip.exitFailed' mendapat kunci baru dari bahasa blok tempatnya berada.
+  const blocks = [...text.matchAll(/^export const (\w+) = \{$/gm)].map(match => ({ at: match.index, code: match[1] }))
+  const exits = [...text.matchAll(/^ {2}'chip\.exitFailed': '[^'\n]*',\n/gm)]
+    .map(match => ({ line: match[0], code: blocks.filter(block => block.at < match.index).pop()?.code }))
+  if (exits.length !== Object.keys(MODE_COPY).length || exits.some(exit => MODE_COPY[exit.code] === undefined)) {
+    failures.push(`mode (teks): blok bahasa di ${path} tidak cocok dengan MODE_COPY; upstream berubah, perbarui aturannya`)
+  } else {
+    editFile({
+      name: 'mode (teks)',
+      path,
+      pairs: exits.map(({ line, code }) => [line, line + MODE_KEYS.map((key, slot) => `  '${key}': '${MODE_COPY[code][slot]}',\n`).join('')]),
+    })
+  }
+}
+
+// 24c. Chip folder dan cabang Git di baris opsi composer. Cabang dibaca dari berkas
+//      HEAD lewat Remote workspaceFiles yang sudah ada, jadi tidak ada layanan Host baru.
+for (const file of ['TtokenChips.tsx', 'TtokenChips.module.css', 'install.ts', 'locales.ts']) {
+  writeGenerated(`chip composer (${file})`, `packages/client/ui-conversation/src/client/ttoken/${file}`, clientPart(`composer/${file}`))
+}
+editFile({
+  name: 'chip composer (pasang)',
+  path: 'packages/client/ui-conversation/src/client/apply.ts',
+  pairs: [
+    [`import { installStopShortcut } from './stop-shortcut.ts'\n`, `import { installStopShortcut } from './stop-shortcut.ts'\nimport { installTtokenComposer } from './ttoken/install.ts'\n`],
+    [
+      `  ctx.plugin(todoDockEntry)\n  ctx.plugin(queueDockEntry)\n}\n`,
+      `  ctx.plugin(todoDockEntry)\n  ctx.plugin(queueDockEntry)\n  // TTOken Code: working folder and Git branch chips above the draft.\n  installTtokenComposer(ctx)\n}\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'chip izin (gaya)',
+  path: 'packages/client/ui-permission-presets/src/client/PermissionSelect.module.css',
+  pairs: [[
+    `.trigger:disabled {\n  color: var(--dsw-alias-label-dimmed);\n  cursor: default;\n}\n`,
+    `.trigger:disabled {\n  color: var(--dsw-alias-label-dimmed);\n  cursor: default;\n}\n
+/* TTOken Code: the permission control is a chip in the composer's option row,
+   with the same size and fill as the folder and branch chips. */
+.trigger {
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border-radius: 12px;
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+@media (hover: hover) {
+  .trigger:hover:not(:disabled) {
+    background: var(--dsw-alias-button-ghost-active-hover);
+  }
+}
+`,
+  ]],
+})
+
+// 25. Diff: baris yang ditambah blok hijau, yang dihapus blok merah. Teks kode
+//     tetap warna teks utama supaya terbaca; tanda + dan - memakai warna blok.
+editFile({
+  name: 'diff (warna baris)',
+  path: 'packages/client/ui-primitives/src/DiffBlock.module.css',
+  pairs: [
+    [`.del::before {\n  content: '- ';\n}\n`, `.del::before {\n  content: '- ';\n  color: var(--dsw-alias-file-diff-deleted-marker);\n}\n`],
+    [`.del {\n  color: var(--dsw-alias-state-error-primary);\n`, `.del {\n  color: var(--dsw-alias-label-primary);\n`],
+    [`.add::before {\n  content: '+ ';\n}\n`, `.add::before {\n  content: '+ ';\n  color: var(--dsw-alias-file-diff-added-marker);\n}\n`],
+    [`.add {\n  color: var(--dsw-alias-state-success-primary);\n`, `.add {\n  color: var(--dsw-alias-label-primary);\n`],
+  ],
+})
+
+// 26. Warna bilah judul Windows sebelum halaman selesai dimuat mengikuti palet TTOken.
+editFile({
+  name: 'bilah judul (warna awal)',
+  path: 'apps/desktop/src/main.ts',
+  pairs: [[
+    `  return nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb'\n`,
+    `  return nativeTheme.shouldUseDarkColors ? '#111111' : '#f3f2ee'\n`,
+  ]],
 })
 
 for (const line of report) console.log(line)

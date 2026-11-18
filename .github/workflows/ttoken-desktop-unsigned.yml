@@ -33,12 +33,25 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '24'
+          cache: pnpm
       - name: Periksa identitas TTOken Code
         run: node ttoken/apply-brand.mjs --check
       - name: Pasang dependensi
         run: pnpm install --frozen-lockfile
+      - name: Pulihkan cache packaging
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/ttoken-desktop-cache
+          key: ttoken-desktop-win-x64-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ttoken-desktop-win-x64-
+      - name: Arahkan cache packaging
+        run: '"DSH_DESKTOP_PACKAGE_CACHE_DIR=$(Join-Path $env:RUNNER_TEMP ''ttoken-desktop-cache'')" >> $env:GITHUB_ENV'
       - name: Tulis konfigurasi packaging
-        run: Set-Content -Path apps/desktop/.env.windows -Value 'DSH_DESKTOP_APP_ID=dev.ttoken.code' -Encoding utf8
+        run: |
+          Set-Content -Path apps/desktop/.env.windows -Encoding utf8 -Value @(
+            'DSH_DESKTOP_APP_ID=dev.ttoken.code'
+            'DSH_DESKTOP_WINDOWS_COMPRESSION_LEVEL=1'
+          )
       - name: Periksa konfigurasi dan toolchain
         run: |
           pnpm run package:desktop:win:x64:unsigned --check
@@ -63,6 +76,8 @@ jobs:
 
   mac-arm64:
     name: macOS Apple silicon
+    # Hanya saat dijalankan manual, sampai ada mesin Mac untuk menguji hasilnya.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     timeout-minutes: 150
     steps:
@@ -71,10 +86,19 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '24'
+          cache: pnpm
       - name: Periksa identitas TTOken Code
         run: node ttoken/apply-brand.mjs --check
       - name: Pasang dependensi
         run: pnpm install --frozen-lockfile
+      - name: Pulihkan cache packaging
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/ttoken-desktop-cache
+          key: ttoken-desktop-mac-arm64-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ttoken-desktop-mac-arm64-
+      - name: Arahkan cache packaging
+        run: echo "DSH_DESKTOP_PACKAGE_CACHE_DIR=$RUNNER_TEMP/ttoken-desktop-cache" >> "$GITHUB_ENV"
       - name: Bangun DMG
         run: pnpm run package:desktop:mac:arm64:unsigned
       - name: Unggah DMG

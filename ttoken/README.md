@@ -11,6 +11,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 | `layer/cordis.patch.yml` | Lapisan Cordis: rute TTOken Gateway, model bawaan, telemetri upstream dimatikan |
 | `icons/` | Ikon aplikasi dan tray, dirender dari `ttoken-code-app-icon.svg` di repo TTOken |
 | `installer/`, `renderer/`, `web/` | Gambar merek installer, merek layar sambutan, dan favicon |
+| `client/` | Wordmark dan mask indikator berjalan untuk antarmuka di dalam jendela |
 | `NOTICE.md` | Atribusi ke DeepSeek Harness |
 
 ## Yang diubah oleh `apply-brand.mjs`
@@ -26,6 +27,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 9. **Gambar merek** installer, layar sambutan, dan favicon. Aset upstream memuat logo resmi DeepSeek Harness. Penggantinya dibangun oleh `installer/generate-brand-assets.py` dari mark TTOken Code dan font Bricolage Grotesque milik web TTOken.
 10. **Penerbit** di metadata `.exe`, serta kunci registry dan nama mutex perintah PATH.
 11. **Layar sambutan** meminta API key TTOken Gateway dan tidak menawarkan login akun DeepSeek.
+12. **Merek di dalam jendela**: mark dan wordmark (`FishLogo`, `BrandWordmark` di `ui-primitives`), nama build di sidebar, judul jendela, judul beranda, indikator berjalan, dan dekorasi paus piksel di beranda yang tidak lagi dipasang.
 
 ## Alur kerja
 
@@ -79,7 +81,7 @@ Urut dari yang paling menghalangi rilis:
 1. **Layanan kebijakan update.** Build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Sebelum rilis publik perlu endpoint di domain TTOken.
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
 3. **Login akun DeepSeek** sudah disembunyikan dari layar sambutan, tetapi plugin akunnya masih terpasang dan masih bisa muncul di pengaturan. Perlu diganti login akun TTOken.
-4. **Antarmuka web di dalam jendela** (`packages/client`, `packages/web`, `apps/web`) masih menyebut nama upstream, memakai tema upstream, dan memuat maskot upstream (`running-whale@2x.png` serta logo yang ditulis langsung di komponen). Ini dikerjakan bersama reskin dan wajib selesai sebelum dibagikan ke user.
+4. **Tampilan di dalam jendela** sudah bermerek TTOken Code, tetapi tema warna, tata letak tiga kolom, dan teks antarmukanya masih milik upstream. Tahap berikutnya: token tema TTOken, lalu tata letak baru. Penyebutan nama upstream yang tersisa di teks pengaturan dan bantuan perlu disisir.
 5. **Tagline layar sambutan** masih milik DeepSeek ("Build potential. Explore intelligence.", kunci `welcomeDescription` di `apps/desktop/src/locale.ts`, delapan bahasa). Menunggu tagline TTOken dari pemilik produk.
 6. **API key otomatis dari akun TTOken.** Layar sambutan sekarang meminta user menempelkan API key. Tujuannya: user login akun TTOken, lalu aplikasi menerima key Gateway tanpa disalin tangan. Butuh endpoint otorisasi di API TTOken; skema `ttoken-code://` sudah terdaftar untuk jalur baliknya.
 7. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.

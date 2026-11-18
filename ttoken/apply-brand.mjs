@@ -175,6 +175,58 @@ function copyAssets(name, pairs) {
   report.push(copied === 0 ? `${name}: sudah diterapkan` : `${name}: ${copied} file disalin${DRY ? ' (rencana)' : ''}`)
 }
 
+/**
+ * Ganti nilai literal string satu baris di semua deklarasi atau kunci yang cocok.
+ *
+ * `pattern` harus punya dua grup: awalan sampai sebelum literal, lalu literal lama beserta tanda kutipnya.
+ * @param {{ name: string, paths: string[], pattern: RegExp, value: string, expected: number }} rule Aturan penggantian.
+ * @returns {void}
+ */
+function setQuotedValues(rule) {
+  let matches = 0
+  let pending = 0
+  for (const path of rule.paths) {
+    const absolute = join(ROOT, path)
+    const original = readFileSync(absolute, 'utf8')
+    const literal = `'${rule.value}'`
+    const next = original.replace(rule.pattern, (whole, head, current) => {
+      matches += 1
+      if (current === literal) return whole
+      pending += 1
+      return `${head}${literal}`
+    })
+    if (next !== original && !DRY && !CHECK) writeFileSync(absolute, next)
+  }
+  if (matches !== rule.expected) {
+    failures.push(`${rule.name}: menemukan ${matches} nilai, seharusnya ${rule.expected}; upstream berubah, perbarui aturannya`)
+    return
+  }
+  if (CHECK && pending > 0) {
+    failures.push(`${rule.name}: ${pending} nilai upstream tersisa`)
+    return
+  }
+  report.push(pending === 0 ? `${rule.name}: sudah diterapkan` : `${rule.name}: ${pending} nilai diganti${DRY ? ' (rencana)' : ''}`)
+}
+
+/**
+ * Bangun perintah path SVG untuk persegi bersudut bulat, searah jarum jam.
+ * @param {number} x Tepi kiri.
+ * @param {number} y Tepi atas.
+ * @param {number} w Lebar.
+ * @param {number} h Tinggi.
+ * @param {number} r Jari-jari sudut.
+ * @returns {string} Data path tertutup.
+ */
+function roundedRect(x, y, w, h, r) {
+  return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}`
+    + `H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`
+}
+
+/** Mark TTOken Code pada kanvas 56x48: badan berwarna kunyit dan garis kursor. */
+const MARK_BODY = roundedRect(0, 0, 56, 16, 8) + roundedRect(6, 4, 18, 44, 9) + roundedRect(32, 4, 18, 26, 9)
+const MARK_BAR = roundedRect(32, 37, 18, 8, 4)
+const KUNYIT = '#FFB21A'
+
 // 1. Nama produk yang terlihat user: menu, dialog, installer, nama .app dan .exe.
 replaceTokens({
   name: 'nama-produk',
@@ -366,6 +418,82 @@ replaceTokens({
     ['Konfigurieren Sie offizielle DeepSeek-Modelle für die Verwendung von Harness', 'Fügen Sie Ihren TTOken-Gateway-API-Schlüssel hinzu, um TTOken Code zu verwenden'],
     ['Настройте официальные модели DeepSeek, чтобы начать использовать Harness.', 'Добавьте API-ключ TTOken Gateway, чтобы начать работу с TTOken Code.'],
     ['Configure modelos DeepSeek oficiais para começar a usar o Harness', 'Adicione sua chave de API do TTOken Gateway para começar a usar o TTOken Code'],
+  ],
+})
+
+// 12. Merek di dalam jendela: mark, wordmark, nama build, judul, dan beranda.
+//     Komponen FishLogo dan BrandWordmark dipakai sidebar, beranda, dan plugin
+//     merek, jadi mengganti isinya mengganti semua kemunculan paus upstream.
+const FISH_LOGO = 'packages/client/ui-primitives/src/FishLogo.tsx'
+const EMPTY_HERO = 'packages/client/ui-conversation/src/client/skeleton/EmptyHero.tsx'
+editFile({
+  name: 'mark-klien (ukuran)',
+  path: FISH_LOGO,
+  pairs: [
+    [`export const FISH_LOGO_VIEWBOX = { width: 23.16, height: 17.04 }`, `export const FISH_LOGO_VIEWBOX = { width: 56, height: 48 }`],
+    [
+      `      <path d={FISH_LOGO_PATH} fill="currentColor" />\n`,
+      `      <path d={FISH_LOGO_PATH} fill="${KUNYIT}" />\n      <path d="${MARK_BAR}" fill="currentColor" />\n`,
+    ],
+  ],
+})
+setQuotedValues({
+  name: 'mark-klien (bentuk)',
+  paths: [FISH_LOGO],
+  pattern: /(export const FISH_LOGO_PATH =\s*)('[^'\n]*')/g,
+  value: MARK_BODY,
+  expected: 1,
+})
+// Animasi berenang di beranda memorf path paus; target morf disamakan dengan mark supaya bentuknya tetap.
+setQuotedValues({
+  name: 'mark-beranda (bentuk)',
+  paths: [EMPTY_HERO],
+  pattern: /(const HERO_SWIM_(?:UP|DOWN)_PATH =\s*)('[^'\n]*')/g,
+  value: MARK_BODY,
+  expected: 2,
+})
+editFile({
+  name: 'mark-beranda (warna)',
+  path: EMPTY_HERO,
+  pairs: [
+    [`      <path d={FISH_LOGO_PATH} fill="currentColor">\n`, `      <path d={FISH_LOGO_PATH} fill="${KUNYIT}">\n`],
+    [`      </path>\n    </svg>\n`, `      </path>\n      <path d="${MARK_BAR}" fill="currentColor" />\n    </svg>\n`],
+  ],
+})
+copyAssets('wordmark-klien', [
+  ['ttoken/client/BrandWordmark.tsx', 'packages/client/ui-primitives/src/BrandWordmark.tsx'],
+  ['ttoken/client/running-mark@2x.png', 'packages/client/ui-chat/src/client/assets/running-whale@2x.png'],
+])
+const CLIENT_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'zh'].map(code => `packages/client/locale/src/locales/${code}.ts`)
+setQuotedValues({
+  name: 'nama-build-klien',
+  paths: CLIENT_LOCALES,
+  pattern: /('brand\.localBuild': )('[^'\n]*'|"[^"\n]*")/g,
+  value: brand.productName,
+  expected: CLIENT_LOCALES.length,
+})
+setQuotedValues({
+  name: 'judul-beranda',
+  paths: ['packages/client/ui-conversation/src/client/locales.ts'],
+  pattern: /('hero\.headline': )('[^'\n]*'|"[^"\n]*")/g,
+  value: brand.productName,
+  expected: CLIENT_LOCALES.length,
+})
+replaceTokens({
+  name: 'judul-jendela',
+  scopes: ['apps/web'],
+  pairs: [['DSH Local Build', brand.productName]],
+})
+// Dekorasi paus piksel di beranda tidak dipasang.
+editFile({
+  name: 'paus-beranda',
+  path: 'packages/client/ui-brand-official/src/client/index.ts',
+  pairs: [
+    [`import { PixelWhale } from './home-whale/PixelWhale.tsx'\n`, `// TTOken Code: the upstream pixel whale decoration is not mounted.\n`],
+    [
+      `  ctx.slots.inject('conversation.hero.frame', () => ctx.slots.register({\n    name: 'conversation.hero.frame',\n    id: 'pixel-whale',\n  }, PixelWhale))\n  if (process.env.DSH_CLIENT_BUILD_PROFILE !== 'official') return\n`,
+      `  // TTOken Code: only the sidebar brand slots are filled.\n  if (process.env.DSH_CLIENT_BUILD_PROFILE !== 'official') return\n`,
+    ],
   ],
 })
 

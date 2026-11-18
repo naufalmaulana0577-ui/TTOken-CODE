@@ -52,16 +52,11 @@
 - id: session-telemetry-otel
   disabled: true
 
-# Plugin yang terikat ke layanan DeepSeek: akun dan login, provider resmi,
-# pencarian web lewat API DeepSeek, unggahan log sesi untuk melatih model
-# DeepSeek, impor riwayat chat DeepSeek, terjemahan lewat DeepSeek Flash,
-# berbagi sesi lewat server DeepSeek, dan pasar plugin DeepSeek.
-- id: deepseek-account
-  disabled: true
-- id: deepseek-auth
-  disabled: true
-- id: llm-deepseek-account
-  disabled: true
+# Plugin yang hanya berguna dengan layanan DeepSeek, atau mengirim data ke
+# sana: provider resmi DeepSeek dan pendukungnya, unggahan log sesi untuk
+# melatih model DeepSeek, pencarian native DeepSeek, impor riwayat chat dari
+# situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
+# Halaman Plugins tidak mendaftar paket ini (HIDDEN_PACKAGES di apply-brand.mjs).
 - id: llm-deepseek
   disabled: true
 - id: deepseek-llm-api-extensions
@@ -70,55 +65,31 @@
   disabled: true
 - id: session-log-deepseek
   disabled: true
-- id: web-search-deepseek
+- id: ui-settings-session-log
   disabled: true
-- id: web-deepseek-api
+- id: web-search-deepseek
   disabled: true
 - id: deepseek-chat-import
   disabled: true
-- id: translator
-  disabled: true
-- id: cot-translation
-  disabled: true
 - id: liveshare-share-host
   disabled: true
-- id: ui-plugin-market
-  disabled: true
-- id: cli-account
+- id: skill-badge
   disabled: true
 
-# Halaman antarmuka untuk layanan di atas, yang kosong atau menyesatkan tanpa
-# layanannya: akun, unggahan log sesi, pencarian web, dan umpan balik pesan
-# yang dikirim ke DeepSeek.
+# Mati sampai diarahkan ke server TTOken: login akun dan notifikasinya,
+# pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya
+# adalah server DeepSeek.
+- id: deepseek-account
+  disabled: true
+- id: deepseek-auth
+  disabled: true
+- id: llm-deepseek-account
+  disabled: true
 - id: ui-settings-account
   disabled: true
 - id: ui-account-notifications
   disabled: true
-- id: ui-settings-session-log
+- id: web-deepseek-api
   disabled: true
 - id: ui-settings-web-search
-  disabled: true
-- id: message-feedback
-  disabled: true
-- id: ui-message-feedback
-  disabled: true
-- id: command-feedback
-  disabled: true
-
-# Fitur ekosistem upstream: halaman Plugins menampilkan nama paket upstream,
-# rekomendasi plugin, skill lencana "powered by DSH", dan konteks pengembangan
-# upstream yang menyebut produknya di prompt model.
-- id: ui-plugin-manager
-  disabled: true
-- id: plugin-recommendations
-  disabled: true
-- id: client-ui-plugin-recommendations
-  disabled: true
-- id: creation-recommendations
-  disabled: true
-- id: client-ui-creation-recommendations
-  disabled: true
-- id: skill-badge
-  disabled: true
-- id: harness-dev-context
   disabled: true

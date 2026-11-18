@@ -600,6 +600,18 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
   }
 }
 
+/** TTOken Code: packages switched off for TTOken Code are not listed, so they cannot be switched back on here. */
+const TTOKEN_HIDDEN_PACKAGES: ReadonlySet<string> = new Set(["@deepseek-ai/dsh-llm-deepseek-api-key","@deepseek-ai/dsh-deepseek-llm-api-extensions","@deepseek-ai/dsh-plugin-package-inventory-deepseek","@deepseek-ai/dsh-session-log-deepseek","@deepseek-ai/dsh-web-search-deepseek","@deepseek-ai/dsh-deepseek-chat-import","@deepseek-ai/dsh-experimental-liveshare","@deepseek-ai/dsh-skill-badge","@deepseek-ai/dsh-experimental-badge-skill-bundle","@deepseek-ai/dsh-client-ui-settings-session-log","@deepseek-ai/dsh-deepseek-account","@deepseek-ai/dsh-deepseek-auth","@deepseek-ai/dsh-llm-deepseek-account","@deepseek-ai/dsh-client-ui-settings-account","@deepseek-ai/dsh-client-ui-account-notifications","@deepseek-ai/dsh-web-deepseek-api","@deepseek-ai/dsh-client-ui-settings-web-search","@deepseek-ai/dsh-client-product-analytics","@deepseek-ai/dsh-host-product-telemetry-otel","@deepseek-ai/dsh-session-telemetry-otel"])
+
+/**
+ * Whether TTOken Code lists a package or module.
+ * @param name - package name or module specifier.
+ * @returns false for a hidden package or one of its subpaths.
+ */
+function ttokenListed(name: string): boolean {
+  return !TTOKEN_HIDDEN_PACKAGES.has(name.split('/').slice(0, 2).join('/'))
+}
+
 /**
  * The order the list shows packages in: by the short name a person reads, so a
  * card stays put when its bundle is switched, whatever order the Host answers in.
@@ -1140,7 +1152,9 @@ export class PluginManagerController {
         this.patch({
           status: 'ready',
           refreshStatus: this.getSnapshot().refreshStatus === 'refreshing' ? 'refreshing' : 'idle',
-          packages: sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value))),
+          packages: sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value))
+            .filter(view => ttokenListed(view.name))
+            .map(view => ({ ...view, rows: view.rows.filter(row => ttokenListed(row.moduleName)) }))),
         })
         this.dropStaleVersions()
       } while (this.shouldRerun())

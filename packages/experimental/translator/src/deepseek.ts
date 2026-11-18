@@ -117,7 +117,8 @@ export async function availablePaidProviders(ctx: Context, config: Config, signa
   track: (work: Promise<unknown>) => void): Promise<readonly TranslationProvider[]> {
   using timeout = deadline(signal, config.deepseekTimeoutMs, 'TRANSLATION_TIMEOUT')
   const available: TranslationProvider[] = ['bing', 'google']
-  for (const provider of ['deepseek-account', 'deepseek-official'] as const) {
+  // TTOken Code: the paid DeepSeek Flash routes are never offered.
+  for (const provider of [] as ('deepseek-account' | 'deepseek-official')[]) {
     try {
       const candidate = await eligible(ctx, provider, timeout.signal, track)
       timeout.signal.throwIfAborted()

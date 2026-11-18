@@ -35,9 +35,9 @@ const WEB_SURFACE = 'app:web-surface'
 
 const HARNESS_SOURCE_GUIDANCE = 'The checkout location and current working directory are separate values and may differ; '
   + 'never infer the working directory from the checkout path. Use pwd to determine the current working directory. '
-  + 'Use this checkout only to inspect or extend DSH itself.'
+  + 'Use this checkout only to inspect or extend TTOken Code itself.'
 
-const HARNESS_SOURCE_PROMPT = `The runtime context names the DeepSeek Harness implementation checkout. ${HARNESS_SOURCE_GUIDANCE}`
+const HARNESS_SOURCE_PROMPT = `The runtime context names the TTOken Code implementation checkout. ${HARNESS_SOURCE_GUIDANCE}`
 
 const WEB_SURFACE_GUIDANCE = 'When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this GUI. '
   + 'The browser provides no implicit DOM, route, or screenshot context. '
@@ -48,7 +48,7 @@ const WEB_SURFACE_GUIDANCE = 'When the user refers to "this page", "this GUI", o
   + 'The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. '
   + 'Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.'
 
-const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. ${WEB_SURFACE_GUIDANCE}`
+const WEB_SURFACE_PROMPT = `You are interacting with the user through the TTOken Code Web GUI whose URL the runtime context names. ${WEB_SURFACE_GUIDANCE}`
 
 /**
  * Fixed text around the value in each paragraph that embedded it, frozen as
@@ -57,15 +57,15 @@ const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSe
  * rewrite their logged prompt.
  */
 const LEGACY_SOURCE = {
-  prefix: 'The DeepSeek Harness implementation checkout is at ',
+  prefix: 'The TTOken Code implementation checkout is at ',
   suffix: '. The checkout location and current working directory are separate values and may differ; '
     + 'never infer the working directory from this path. Use pwd to determine the current working directory. '
-    + 'Use this checkout only to inspect or extend DSH itself.',
+    + 'Use this checkout only to inspect or extend TTOken Code itself.',
 }
 // The frozen copy repeats today's guidance on purpose; the two may diverge.
 /* jscpd:ignore-start */
 const LEGACY_WEB_SURFACE = {
-  prefix: 'You are interacting with the user through the DeepSeek Harness Web GUI at ',
+  prefix: 'You are interacting with the user through the TTOken Code Web GUI at ',
   suffix: '. When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this GUI. '
     + 'The browser provides no implicit DOM, route, or screenshot context. '
     + 'The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while '
@@ -141,7 +141,7 @@ export async function apply(ctx: Context): Promise<void> {
     name: HARNESS_SOURCE,
     order: ctx.systemPrompt.getContextOrder('HARNESS_SOURCE'),
     interpolate: false,
-    text: `Current DeepSeek Harness implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`,
+    text: `Current TTOken Code implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`,
   })
   ctx.systemPrompt.section({
     name: WEB_SURFACE,
@@ -153,6 +153,6 @@ export async function apply(ctx: Context): Promise<void> {
     name: WEB_SURFACE,
     order: ctx.systemPrompt.getContextOrder('WEB_SURFACE'),
     interpolate: false,
-    text: () => `Current DeepSeek Harness Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`,
+    text: () => `Current TTOken Code Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`,
   })
 }

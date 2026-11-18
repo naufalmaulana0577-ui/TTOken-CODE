@@ -240,7 +240,8 @@ const STRING_LITERAL = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g
  * Ganti nama upstream di dalam literal string semua kamus bahasa.
  *
  * Kode di luar literal tidak disentuh. Literal yang memuat frasa `keep` dilewati utuh.
- * @param {{ name: string, scopes: string[], keep: string[] }} rule Aturan penggantian.
+ * Dengan `files`, hanya berkas itu yang diproses; berkas Markdown di dalamnya diproses seluruh teksnya.
+ * @param {{ name: string, scopes?: string[], files?: string[], keep: string[] }} rule Aturan penggantian.
  * @returns {void}
  */
 function rebrandLocaleStrings(rule) {
@@ -255,18 +256,29 @@ function rebrandLocaleStrings(rule) {
   let pending = 0
   let touched = 0
   let files = 0
-  for (const path of trackedTextFiles(rule.scopes)) {
-    if (!LOCALE_FILE.test(path) || /(^|\/)(tests?|fixtures)\//.test(path) || /\.(spec|test)\./.test(path)) continue
-    files += 1
+  const paths = rule.files ?? trackedTextFiles(rule.scopes ?? []).filter(path => LOCALE_FILE.test(path)
+    && !/(^|\/)(tests?|fixtures)\//.test(path) && !/\.(spec|test)\./.test(path))
+  for (const path of paths) {
     const absolute = join(ROOT, path)
+    if (!existsSync(absolute)) {
+      failures.push(`${rule.name}: berkas tidak ada: ${path}; upstream berubah, perbarui aturannya`)
+      continue
+    }
+    files += 1
     const original = readFileSync(absolute, 'utf8')
     let changes = 0
-    const next = original.replace(STRING_LITERAL, (literal, quote, body) => {
-      if (rule.keep.some(phrase => body.includes(phrase))) return literal
+    const rewrite = body => {
+      if (rule.keep.some(phrase => body.includes(phrase))) return body
       let value = body
       for (const [pattern, replacement] of edits) value = value.replace(pattern, () => { changes += 1; return replacement })
-      return value === body ? literal : `${quote}${value}${quote}`
-    })
+      return value
+    }
+    const next = path.endsWith('.md')
+      ? rewrite(original)
+      : original.replace(STRING_LITERAL, (literal, quote, body) => {
+        const value = rewrite(body)
+        return value === body ? literal : `${quote}${value}${quote}`
+      })
     if (changes === 0) continue
     pending += changes
     touched += 1
@@ -282,6 +294,67 @@ function rebrandLocaleStrings(rule) {
   }
   report.push(pending === 0 ? `${rule.name}: sudah diterapkan (${files} berkas)` : `${rule.name}: ${pending} penggantian di ${touched} berkas${DRY ? ' (rencana)' : ''}`)
 }
+
+/**
+ * Tulis literal string sesuai urutan kemunculan kunci, satu nilai per blok bahasa.
+ * @param {{ name: string, path: string, key: string, values: string[] }} rule Kunci dan nilainya, urut seperti blok bahasa di berkas.
+ * @returns {void}
+ */
+function setLocaleValues(rule) {
+  const absolute = join(ROOT, rule.path)
+  const original = readFileSync(absolute, 'utf8')
+  const pattern = new RegExp(`((?:'${rule.key}'|${rule.key})\\s*:\\s*)('(?:\\\\.|[^'\\\\\\n])*'|"(?:\\\\.|[^"\\\\\\n])*")`, 'g')
+  let index = 0
+  let pending = 0
+  const next = original.replace(pattern, (whole, head, current) => {
+    const value = rule.values[index++]
+    if (value === undefined) return whole
+    const literal = value.includes("'") ? JSON.stringify(value) : `'${value}'`
+    if (current === literal) return whole
+    pending += 1
+    return `${head}${literal}`
+  })
+  if (index !== rule.values.length) {
+    failures.push(`${rule.name}: menemukan ${index} nilai ${rule.key}, seharusnya ${rule.values.length}; upstream berubah, perbarui aturannya`)
+    return
+  }
+  if (CHECK && pending > 0) {
+    failures.push(`${rule.name}: ${pending} nilai upstream tersisa`)
+    return
+  }
+  if (pending > 0 && !DRY && !CHECK) writeFileSync(absolute, next)
+  report.push(pending === 0 ? `${rule.name}: sudah diterapkan` : `${rule.name}: ${pending} nilai diganti${DRY ? ' (rencana)' : ''}`)
+}
+
+/**
+ * Paket upstream yang dimatikan lapisan distribusi dan tidak boleh tampil di halaman Plugins,
+ * supaya user tidak melihat namanya atau menyalakannya lagi. Hapus dari daftar ini begitu
+ * paketnya diarahkan ke layanan TTOken.
+ */
+const HIDDEN_PACKAGES = [
+  // Tetap mati: hanya berguna dengan layanan DeepSeek, atau mengirim data ke sana.
+  'dsh-llm-deepseek-api-key',
+  'dsh-deepseek-llm-api-extensions',
+  'dsh-plugin-package-inventory-deepseek',
+  'dsh-session-log-deepseek',
+  'dsh-web-search-deepseek',
+  'dsh-deepseek-chat-import',
+  'dsh-experimental-liveshare',
+  'dsh-skill-badge',
+  'dsh-experimental-badge-skill-bundle',
+  'dsh-client-ui-settings-session-log',
+  // Mati sampai diarahkan ke server TTOken.
+  'dsh-deepseek-account',
+  'dsh-deepseek-auth',
+  'dsh-llm-deepseek-account',
+  'dsh-client-ui-settings-account',
+  'dsh-client-ui-account-notifications',
+  'dsh-web-deepseek-api',
+  'dsh-client-ui-settings-web-search',
+  'dsh-client-product-analytics',
+  'dsh-host-product-telemetry-otel',
+  'dsh-session-telemetry-otel',
+].map(name => `@deepseek-ai/${name}`)
 
 /** Satu-satunya tempat nama upstream boleh terlihat user: baris atribusi di layar sambutan. */
 const ATTRIBUTION = 'Powered by DeepSeek Harness'
@@ -615,6 +688,136 @@ setQuotedValues({
   pattern: /(welcomeDescription: )('[^'\n]*'|"[^"\n]*")/g,
   value: ATTRIBUTION,
   expected: 8,
+})
+
+// 17. Terjemahan reasoning tetap memakai Bing atau Google; rute berbayar DeepSeek Flash tidak ditawarkan.
+editFile({
+  name: 'terjemahan-tanpa-deepseek',
+  path: 'packages/experimental/translator/src/deepseek.ts',
+  pairs: [[
+    `  for (const provider of ['deepseek-account', 'deepseek-official'] as const) {\n`,
+    `  // TTOken Code: the paid DeepSeek Flash routes are never offered.\n  for (const provider of [] as ('deepseek-account' | 'deepseek-official')[]) {\n`,
+  ]],
+})
+
+// 18. Prompt model di plugin yang dinyalakan lagi: konteks mode Creator dan rekomendasi.
+rebrandLocaleStrings({
+  name: 'prompt-plugin',
+  files: [
+    'packages/context/harness-dev-context/src/index.ts',
+    'packages/experimental/plugin-recommendations/src/index.ts',
+    'packages/experimental/plugin-recommendations/src/skill.ts',
+    'packages/experimental/plugin-recommendations/skills/official-plugins.md',
+    'packages/experimental/creation-recommendations/src/index.ts',
+    'packages/experimental/creation-recommendations/skills/personalized-pages.md',
+  ],
+  keep: [ATTRIBUTION],
+})
+
+// 19. Halaman Plugins: nama paket upstream tidak ditampilkan, dan paket yang tetap
+//     mati tidak didaftar sama sekali.
+const PLUGIN_MANAGER = 'packages/client/ui-plugin-manager/src/client'
+const UPSTREAM_SCOPE = `'@deepseek-ai/'`
+editFile({
+  name: 'plugins-daftar',
+  path: `${PLUGIN_MANAGER}/manager-store.ts`,
+  pairs: [
+    [
+      `/**\n * The order the list shows packages in: by the short name a person reads, so a\n`,
+      `/** TTOken Code: packages switched off for TTOken Code are not listed, so they cannot be switched back on here. */\nconst TTOKEN_HIDDEN_PACKAGES: ReadonlySet<string> = new Set(${JSON.stringify(HIDDEN_PACKAGES)})\n\n/**\n * Whether TTOken Code lists a package or module.\n * @param name - package name or module specifier.\n * @returns false for a hidden package or one of its subpaths.\n */\nfunction ttokenListed(name: string): boolean {\n  return !TTOKEN_HIDDEN_PACKAGES.has(name.split('/').slice(0, 2).join('/'))\n}\n\n/**\n * The order the list shows packages in: by the short name a person reads, so a\n`,
+    ],
+    [
+      `packages: sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value))),`,
+      `packages: sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value))\n            .filter(view => ttokenListed(view.name))\n            .map(view => ({ ...view, rows: view.rows.filter(row => ttokenListed(row.moduleName)) }))),`,
+    ],
+  ],
+})
+editFile({
+  name: 'plugins-judul-cadangan',
+  path: `${PLUGIN_MANAGER}/presentation.ts`,
+  pairs: [
+    [
+      `title: pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title),`,
+      `title: pkg.meta?.title === undefined ? (pkg.name.startsWith(${UPSTREAM_SCOPE}) ? shortName(pkg.name) : pkg.name) : resolveText(pkg.meta.title),`,
+    ],
+    [
+      `title: row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title),`,
+      `title: row.meta?.title === undefined ? (row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? shortName(row.moduleName) : row.moduleName) : resolveText(row.meta.title),`,
+    ],
+  ],
+})
+editFile({
+  name: 'plugins-nama-paket',
+  path: `${PLUGIN_MANAGER}/PluginManagerPage.tsx`,
+  pairs: [
+    [
+      `fuzzy: [row.rowId, row.moduleName, ...localizedValues(row.meta?.title)],`,
+      `fuzzy: [row.rowId, ...row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? [] : [row.moduleName], ...localizedValues(row.meta?.title)],`,
+    ],
+    [
+      `{title === row.rowId ? null : <code className={css.rowModule}>{row.rowId}</code>}`,
+      `{title === row.rowId || row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? null : <code className={css.rowModule}>{row.rowId}</code>}`,
+    ],
+    [
+      `{title === row.moduleName ? null : <code className={css.rowModule}>{row.moduleName}</code>}`,
+      `{title === row.moduleName || row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? null : <code className={css.rowModule}>{row.moduleName}</code>}`,
+    ],
+    [
+      `{rowTitle === row.rowId ? null : <p className={css.detailName}><code>{row.rowId}</code></p>}`,
+      `{rowTitle === row.rowId || row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? null : <p className={css.detailName}><code>{row.rowId}</code></p>}`,
+    ],
+    [
+      `        <p className={css.detailName}><code>{row.moduleName}</code></p>\n`,
+      `        {row.moduleName.startsWith(${UPSTREAM_SCOPE}) ? null : <p className={css.detailName}><code>{row.moduleName}</code></p>}\n`,
+    ],
+    [
+      `<p className={css.detailName}><code data-plugin-name>{pkg.name}</code></p>`,
+      `{pkg.name.startsWith(${UPSTREAM_SCOPE}) ? null : <p className={css.detailName}><code data-plugin-name>{pkg.name}</code></p>}`,
+    ],
+    [
+      `{pkg.installTarget === undefined ? null : (`,
+      `{pkg.installTarget === undefined || pkg.name.startsWith(${UPSTREAM_SCOPE}) ? null : (`,
+    ],
+  ],
+})
+editFile({
+  name: 'rekomendasi-plugin-tersembunyi',
+  path: 'packages/experimental/plugin-recommendations/src/skill.ts',
+  pairs: [[
+    `return bundle.official && bundle.optional && bundle.availability !== 'missing'`,
+    `return bundle.official && bundle.optional && bundle.availability !== 'missing' && !${JSON.stringify(HIDDEN_PACKAGES)}.includes(bundle.name)`,
+  ]],
+})
+const PLUGIN_MANAGER_LOCALES = `${PLUGIN_MANAGER}/locales.ts`
+const EXAMPLE_PACKAGE = '@author/plugin-name'
+// Urutan blok bahasa di berkas: zh, en, ja, es, fr, de, ru, pt.
+setLocaleValues({
+  name: 'plugins-contoh-paket',
+  path: PLUGIN_MANAGER_LOCALES,
+  key: 'installSpecPlaceholder',
+  values: [`例如 ${EXAMPLE_PACKAGE}`, `for example ${EXAMPLE_PACKAGE}`, `例: ${EXAMPLE_PACKAGE}`, `por ejemplo ${EXAMPLE_PACKAGE}`,
+    `par exemple ${EXAMPLE_PACKAGE}`, `zum Beispiel ${EXAMPLE_PACKAGE}`, `например ${EXAMPLE_PACKAGE}`, `por exemplo ${EXAMPLE_PACKAGE}`],
+})
+setLocaleValues({
+  name: 'plugins-contoh-paket-panduan',
+  path: PLUGIN_MANAGER_LOCALES,
+  key: 'installGuideIdExample',
+  values: Array(8).fill(EXAMPLE_PACKAGE),
+})
+setLocaleValues({
+  name: 'plugins-petunjuk-paket',
+  path: PLUGIN_MANAGER_LOCALES,
+  key: 'installGuideIdHint',
+  values: [
+    '插件包名即 npm 包名，也就是社区插件 README 安装命令中 pnpm add 之后的部分。',
+    "The plugin package name is the npm package name: the part after pnpm add in a community plugin's README install command.",
+    'プラグインパッケージ名とはnpmパッケージ名です。コミュニティプラグインのREADMEのインストールコマンドにあるpnpm addの後ろの部分です。',
+    'El nombre del paquete del complemento es el nombre del paquete npm: la parte después de pnpm add en el comando de instalación del README de un complemento comunitario.',
+    "Le nom du package du plugin est le nom du package npm : la partie après pnpm add dans la commande d'installation du README d'un plugin communautaire.",
+    'Der Plugin-Paketname ist der npm-Paketname: der Teil nach pnpm add im README-Installationsbefehl eines Community-Plugins.',
+    'Имя пакета плагина — это имя пакета npm: часть после pnpm add в команде установки из README плагина сообщества.',
+    'O nome do pacote do plug-in é o nome do pacote npm: a parte após pnpm add no comando de instalação do README de um plug-in da comunidade.',
+  ],
 })
 
 for (const line of report) console.log(line)

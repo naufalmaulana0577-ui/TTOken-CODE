@@ -121,7 +121,7 @@ export function packageText(
   pkg: Pick<PackageView, 'name' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined; beta: boolean } {
   return {
-    title: pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title),
+    title: pkg.meta?.title === undefined ? (pkg.name.startsWith('@deepseek-ai/') ? shortName(pkg.name) : pkg.name) : resolveText(pkg.meta.title),
     description: pkg.meta?.description === undefined ? undefined : resolveText(pkg.meta.description) || undefined,
     beta: EXPERIMENTAL_BUNDLES.has(pkg.name),
   }
@@ -137,7 +137,7 @@ export function rowText(
   row: Pick<PackageRow, 'moduleName' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined } {
   return {
-    title: row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title),
+    title: row.meta?.title === undefined ? (row.moduleName.startsWith('@deepseek-ai/') ? shortName(row.moduleName) : row.moduleName) : resolveText(row.meta.title),
     description: row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined,
   }
 }

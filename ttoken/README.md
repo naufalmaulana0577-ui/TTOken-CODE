@@ -32,6 +32,10 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 14. **Teks antarmuka** di semua kamus bahasa: "DeepSeek Harness", "DSH", dan "Harness" menjadi TTOken Code; contoh perintah `dsh` di dalam kurung dihapus. Hanya isi literal string yang disentuh.
 15. **Menu "Manage dsh Command"** dihapus.
 16. **Layar sambutan**: mark di tengah, nama produk di bawahnya, dan satu baris "Powered by DeepSeek Harness". Ini satu-satunya tempat nama upstream terlihat user; aturan lain melewati frasa itu.
+17. **Terjemahan reasoning** tetap memakai Bing atau Google; rute berbayar DeepSeek Flash tidak ditawarkan.
+18. **Prompt model** di plugin konteks mode Creator dan rekomendasi menyebut TTOken Code.
+19. **Halaman Plugins** tidak menampilkan nama paket upstream, dan paket di `HIDDEN_PACKAGES` tidak didaftar sama sekali, supaya tidak bisa dinyalakan lagi dari sana. Contoh nama paket di dialog instal menjadi `@author/plugin-name`.
+
 
 
 ## Alur kerja
@@ -96,12 +100,10 @@ Urut dari yang paling menghalangi rilis:
 
 ## Yang sengaja dimatikan
 
-`layer/cordis.patch.yml` mematikan plugin yang terikat ke layanan DeepSeek atau ekosistem upstream. Akibatnya untuk user:
+`layer/cordis.patch.yml` mematikan dua kelompok plugin:
 
-- Tidak ada login akun DeepSeek dan provider resmi DeepSeek. Model hanya lewat TTOken Gateway.
-- Tidak ada pencarian web bawaan, karena upstream memakai API pencarian DeepSeek. Agent tetap bisa membuka URL.
-- Tidak ada halaman Plugins, pasar plugin, rekomendasi plugin, berbagi sesi, impor chat DeepSeek, terjemahan reasoning, dan umpan balik pesan.
-- Tidak ada pengiriman log sesi atau analitik ke server DeepSeek.
+- **Tetap mati**, karena hanya berguna dengan layanan DeepSeek atau mengirim data ke sana: provider resmi DeepSeek dan pendukungnya, unggahan log sesi, pencarian native DeepSeek, impor chat dari situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
+- **Mati sampai diarahkan ke server TTOken**: login akun dan notifikasinya, pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya adalah server DeepSeek. Begitu diarahkan, hapus barisnya dari lapisan dan namanya dari `HIDDEN_PACKAGES`.
 
 ## Nama upstream yang masih ada
 

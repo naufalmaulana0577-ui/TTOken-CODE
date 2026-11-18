@@ -20,7 +20,8 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 4. **Skema URL**: `ttoken-code://`. Skema internal `dsh-app` dibiarkan karena tidak didaftarkan ke OS.
 5. **Direktori data**: `~/.ttoken-code`, supaya sesi, kredensial, dan kunci profil tidak dipakai bersama instalasi resmi di `~/.dsh`.
 6. **Lapisan distribusi** ditanam ke Host desktop (`apps/desktop-host/src/ttoken-layer.ts`, file hasil) dan dipasang sebagai overlay terakhir.
-7. **Ikon**.
+7. **Kebijakan update wajib** hanya untuk build bertanda tangan. Upstream sudah begitu di macOS; Windows disamakan supaya installer uji bisa dibangun sebelum layanan kebijakan milik TTOken ada.
+8. **Ikon**.
 
 ## Alur kerja
 
@@ -36,28 +37,42 @@ Mengubah rute Gateway atau daftar model: sunting `layer/cordis.patch.yml`, lalu 
 
 ## Build
 
-Butuh Node 24.9 ke atas dan pnpm 11.28.5. Satu dependensi diunduh dari `cdn.sheetjs.com`, jadi jaringan harus bisa menjangkaunya.
+### Lewat GitHub Actions (tanpa toolchain lokal)
+
+Workflow `.github/workflows/ttoken-desktop-unsigned.yml` membangun installer Windows x64 dan DMG macOS Apple silicon tanpa tanda tangan di runner milik GitHub. Ia berjalan pada setiap push ke branch `ttoken/**`. Hasilnya ada di halaman run, bagian Artifacts:
+
+- `ttoken-code-windows-x64-unsigned`: installer `.exe`
+- `ttoken-code-mac-arm64-unsigned`: `.dmg`
+- `packaging-logs-…`: log tiap tahap, ada juga saat build gagal
+
+Actions di sebuah fork mati secara bawaan. Aktifkan sekali lewat tab Actions di halaman repo.
+
+Installer tanpa tanda tangan memunculkan peringatan SmartScreen di Windows dan Gatekeeper di macOS, dan menampilkan label build lokal di dalam aplikasi. Ini untuk uji internal.
+
+### Lokal
+
+Butuh Node 24.9 ke atas dan pnpm 11.28.5. Windows juga butuh Git, PowerShell 7, tar, Python, Visual C++ Build Tools, dan Windows SDK. Satu dependensi diunduh dari `cdn.sheetjs.com`, jadi jaringan harus bisa menjangkaunya.
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
+pnpm run package:desktop:win:x64:unsigned     # di Windows x64
 pnpm run package:desktop:mac:arm64:unsigned   # di Mac Apple silicon
 pnpm run package:desktop:mac:x64:unsigned     # di Mac Intel
-pnpm run package:desktop:win:x64:unsigned     # di Windows
 ```
 
-Build Mac tanpa tanda tangan tidak butuh file konfigurasi. Build Windows, termasuk yang tanpa tanda tangan, membaca `apps/desktop/.env.windows` dan mewajibkan alamat layanan kebijakan update (`DSH_DESKTOP_MANDATORY_UPDATE_*_ORIGIN`). Lihat bagian berikut.
+Build Windows membaca `apps/desktop/.env.windows`. Untuk build tanpa tanda tangan cukup satu baris: `DSH_DESKTOP_APP_ID=dev.ttoken.code`. Build Mac tanpa tanda tangan tidak butuh file konfigurasi.
 
 ## Status
 
-Dikerjakan di lingkungan tanpa toolchain upstream, jadi **belum ada yang dikompilasi atau dijalankan**. Yang sudah diperiksa: patcher idempoten, `--check` lolos, tidak ada identitas upstream tersisa di `apps/desktop` dan `apps/desktop-publisher`, dan file `.mjs` yang tersentuh lolos pemeriksaan sintaks. Build pertama di Mac adalah uji yang sebenarnya.
+Dikerjakan di lingkungan tanpa toolchain upstream, jadi **belum ada yang dikompilasi atau dijalankan**. Yang sudah diperiksa: patcher idempoten, `--check` lolos, tidak ada identitas upstream tersisa di `apps/desktop` dan `apps/desktop-publisher`, dan file `.mjs` yang tersentuh lolos pemeriksaan sintaks. Run pertama workflow di atas adalah uji yang sebenarnya.
 
-Test upstream di `apps/desktop/tests` ikut diganti secara mekanis supaya tetap sejalan, tetapi belum dijalankan. Test di luar `apps/desktop` yang mengandalkan `~/.dsh` bisa gagal.
+Test upstream di `apps/desktop/tests` ikut diganti secara mekanis supaya tetap sejalan, tetapi belum dijalankan. Test di luar `apps/desktop` yang mengandalkan `~/.dsh` bisa gagal, dan test `requires policy outside local macOS builds` kini gagal untuk kasus tanpa tanda tangan karena perilakunya memang diubah.
 
 ## Belum dikerjakan
 
 Urut dari yang paling menghalangi rilis:
 
-1. **Layanan kebijakan update.** Build Windows dan build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Pilihannya: sediakan endpoint di domain TTOken, atau jadikan kebijakan opsional lewat aturan baru di patcher.
+1. **Layanan kebijakan update.** Build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Sebelum rilis publik perlu endpoint di domain TTOken.
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
 3. **Login akun DeepSeek** masih terpasang dan masih muncul di antarmuka. Perlu diganti login akun TTOken atau disembunyikan.
 4. **Antarmuka web di dalam jendela** (`packages/client`, `packages/web`, `apps/web`) masih menyebut nama upstream dan memakai tema upstream. Ini dikerjakan bersama reskin.

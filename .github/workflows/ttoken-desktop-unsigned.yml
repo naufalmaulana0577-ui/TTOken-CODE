@@ -1,0 +1,92 @@
+name: TTOken Code · Desktop · unsigned
+
+# Membangun installer uji tanpa tanda tangan di runner milik GitHub, supaya
+# tidak perlu toolchain lokal. Hasilnya diunduh dari halaman run, bagian
+# Artifacts. Installer ini untuk uji internal, bukan untuk dibagikan ke user.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ttoken/**']
+    paths-ignore: ['**/*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttoken-desktop-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Izinkan path panjang
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - name: Periksa identitas TTOken Code
+        run: node ttoken/apply-brand.mjs --check
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+      - name: Tulis konfigurasi packaging
+        run: Set-Content -Path apps/desktop/.env.windows -Value 'DSH_DESKTOP_APP_ID=dev.ttoken.code' -Encoding utf8
+      - name: Periksa konfigurasi dan toolchain
+        run: |
+          pnpm run package:desktop:win:x64:unsigned --check
+          exit $LASTEXITCODE
+      - name: Bangun installer
+        run: |
+          pnpm run package:desktop:win:x64:unsigned
+          exit $LASTEXITCODE
+      - name: Unggah installer
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ttoken-code-windows-x64-unsigned
+          path: apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/*.exe
+          if-no-files-found: error
+      - name: Unggah log packaging
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: packaging-logs-windows-x64
+          path: apps/desktop/.desktop-build/packaging-runs/
+          if-no-files-found: ignore
+
+  mac-arm64:
+    name: macOS Apple silicon
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - name: Periksa identitas TTOken Code
+        run: node ttoken/apply-brand.mjs --check
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+      - name: Bangun DMG
+        run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: Unggah DMG
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ttoken-code-mac-arm64-unsigned
+          path: apps/desktop/.desktop-build/targets/mac-arm64/unsigned-artifacts/*.dmg
+          if-no-files-found: error
+      - name: Unggah log packaging
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: packaging-logs-mac-arm64
+          path: apps/desktop/.desktop-build/packaging-runs/
+          if-no-files-found: ignore

@@ -260,7 +260,28 @@ editFile({
   ],
 })
 
-// 7. Ikon aplikasi dan tray.
+// 7. Kebijakan update wajib hanya untuk build bertanda tangan. Upstream sudah
+//    melewatinya di macOS tanpa tanda tangan; di sini Windows disamakan, supaya
+//    installer uji bisa dibangun sebelum layanan kebijakan milik TTOken ada.
+//    Tanpa metadata kebijakan, aplikasi tidak menghubungi layanan itu sama sekali.
+editFile({
+  name: 'kebijakan-update-opsional (builder)',
+  path: 'apps/desktop/scripts/electron-builder-config.mjs',
+  pairs: [[
+    `const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)`,
+    `const policy = unsigned ? undefined : resolveDesktopPolicyEnvironment(env)`,
+  ]],
+})
+editFile({
+  name: 'kebijakan-update-opsional (validasi)',
+  path: 'apps/desktop/scripts/desktop-package-environment.mjs',
+  pairs: [[
+    `if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)`,
+    `if (!options.unsigned) resolveDesktopPolicyEnvironment(environment)`,
+  ]],
+})
+
+// 8. Ikon aplikasi dan tray.
 copyAssets('ikon', [
   ['ttoken/icons/icon.svg', 'apps/desktop/resources/icon.svg'],
   ['ttoken/icons/icon.png', 'apps/desktop/resources/icon.png'],

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { AccountNotificationEvent, AccountNotificationId, SignInErrorCode } from './types.ts'
 
 /** Request header carrying the account token on every request the token authenticates. */
-export const ACCOUNT_TOKEN_HEADER = 'x-dsh-auth-token'
+export const ACCOUNT_TOKEN_HEADER = 'x-ttoken-code-token'
 
 /** Protocol errors expose a stable code, never a response body or authorization URL. */
 export class PlatformAuthError extends Error {
@@ -97,7 +97,7 @@ export const exchange = z.object({ token: z.string().regex(/^[\x21-\x7e]+$/), au
  */
 export async function requestPlatform(origin: string, method: string, body: unknown,
   signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
-  return platformRequest(`${origin}/auth-api/v0/dsh/${method}`, {
+  return platformRequest(`${origin}/api/v1/code/desktop/${method}`, {
     method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body),
   }, signal)
 }
@@ -111,7 +111,7 @@ export async function requestPlatform(origin: string, method: string, body: unkn
  * @param headers - validated deployment headers for this origin.
  * @returns successful business payload.
  */
-export function requestAccount(origin: string, path: '/auth-api/v0/users/current' | '/api/v0/users/get_user_summary',
+export function requestAccount(origin: string, path: '/api/v1/code/desktop/me' | '/api/v1/code/desktop/wallet',
   token: string,
   signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
   return platformRequest(`${origin}${path}`, { method: 'GET', headers: accountHeaders(headers, token) }, signal)
@@ -127,7 +127,7 @@ export function requestAccount(origin: string, path: '/auth-api/v0/users/current
  */
 export function requestNotifications(origin: string, token: string,
   signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
-  return platformRequest(`${origin}/api/v0/users/notifications/list`,
+  return platformRequest(`${origin}/api/v1/code/desktop/notifications/list`,
     { method: 'GET', headers: accountHeaders(headers, token) }, signal)
 }
 
@@ -142,7 +142,7 @@ export function requestNotifications(origin: string, token: string,
  */
 export function requestNotificationContent(origin: string, token: string, id: AccountNotificationId,
   signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
-  return platformRequest(`${origin}/api/v0/users/notifications/content?id=${encodeURIComponent(id)}`,
+  return platformRequest(`${origin}/api/v1/code/desktop/notifications/content?id=${encodeURIComponent(id)}`,
     { method: 'GET', headers: accountHeaders(headers, token) }, signal)
 }
 
@@ -158,7 +158,7 @@ export function requestNotificationContent(origin: string, token: string, id: Ac
  */
 export function requestNotificationEvent(origin: string, token: string, id: AccountNotificationId,
   event: AccountNotificationEvent, signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
-  return platformRequest(`${origin}/api/v0/users/notifications/events`, {
+  return platformRequest(`${origin}/api/v1/code/desktop/notifications/events`, {
     method: 'POST', headers: { ...accountHeaders(headers, token), 'content-type': 'application/json' },
     body: JSON.stringify({ notification_id: id, type: event }),
   }, signal)
@@ -179,7 +179,7 @@ function accountHeaders(headers: Record<string, string>, token: string): Record<
  */
 export async function logoutAccount(origin: string, token: string,
   signal: AbortSignal, headers: Record<string, string>): Promise<void> {
-  await platformRequest(`${origin}/auth-api/v0/users/logout`, {
+  await platformRequest(`${origin}/api/v1/code/desktop/logout`, {
     method: 'POST', headers: { ...headers, [ACCOUNT_TOKEN_HEADER]: token },
   }, signal)
 }

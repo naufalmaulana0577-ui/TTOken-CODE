@@ -41,6 +41,7 @@ import type { ConfigLedger } from './config-ledger.ts'
 import type { PluginTabInstall, PluginTabUpdate } from './slot-contract.ts'
 import type { PluginTab } from './tab-ledger.ts'
 import { shortName } from './presentation.ts'
+import { TTOKEN_HIDDEN_PACKAGES } from './ttoken-hidden.ts'
 import { BundleDetailController, type BundleDetailsState } from './detail-store.ts'
 import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 
@@ -599,9 +600,6 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
     ...bundle.error === undefined ? {} : { error: bundle.error },
   }
 }
-
-/** TTOken Code: packages switched off for TTOken Code are not listed, so they cannot be switched back on here. */
-const TTOKEN_HIDDEN_PACKAGES: ReadonlySet<string> = new Set(["@deepseek-ai/dsh-llm-deepseek-api-key","@deepseek-ai/dsh-deepseek-llm-api-extensions","@deepseek-ai/dsh-plugin-package-inventory-deepseek","@deepseek-ai/dsh-session-log-deepseek","@deepseek-ai/dsh-web-search-deepseek","@deepseek-ai/dsh-deepseek-chat-import","@deepseek-ai/dsh-experimental-liveshare","@deepseek-ai/dsh-skill-badge","@deepseek-ai/dsh-experimental-badge-skill-bundle","@deepseek-ai/dsh-client-ui-settings-session-log","@deepseek-ai/dsh-deepseek-account","@deepseek-ai/dsh-deepseek-auth","@deepseek-ai/dsh-llm-deepseek-account","@deepseek-ai/dsh-client-ui-settings-account","@deepseek-ai/dsh-client-ui-account-notifications","@deepseek-ai/dsh-web-deepseek-api","@deepseek-ai/dsh-client-ui-settings-web-search","@deepseek-ai/dsh-client-product-analytics","@deepseek-ai/dsh-host-product-telemetry-otel","@deepseek-ai/dsh-session-telemetry-otel"])
 
 /**
  * Whether TTOken Code lists a package or module.

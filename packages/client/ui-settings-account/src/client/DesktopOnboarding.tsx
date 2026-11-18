@@ -85,10 +85,13 @@ export function DesktopOnboarding({
     track?.('onboarding_page_click', { page_name: pageName, button_name, ...selected_content === undefined ? {} : { selected_content } })
   }
   const go = (next: 'welcome' | 'credit' | 'purpose' | 'process') => { void update({ step: next }) }
-  const canRecharge = openPlatformPage !== undefined
+  // TTOken Code: without an embedded Platform view, Top up opens the TTOken wallet page in the browser.
+  const topUpUrl = openPlatformPage === undefined ? account.view?.links.topUpUrl : undefined
+  const canRecharge = openPlatformPage !== undefined || topUpUrl !== undefined
   const recharge = () => {
     setDialog(null)
     releaseRecharge.current?.()
+    if (topUpUrl !== undefined) { window.open(topUpUrl, '_blank', 'noopener,noreferrer'); return }
     // Every control that reaches this is disabled without the callback.
     releaseRecharge.current = openPlatformPage?.('top-up', () => { releaseRecharge.current = undefined })
   }

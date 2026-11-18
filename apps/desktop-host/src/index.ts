@@ -10,11 +10,12 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-deepseek-account'
 import { localDragResource } from './file-drag.ts'
-import { materializeTtokenLayer } from './ttoken-layer.ts'
+import { TTOKEN_GATEWAY_KEY_REF, materializeTtokenLayer } from './ttoken-layer.ts'
 
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
+import { installTtokenAccountKey } from '@deepseek-ai/dsh-deepseek-account'
 import { installOperationDiagnostics } from './operation-diagnostics.ts'
 import { DesktopAuthenticationEnd, receiveDesktopSecret } from './authentication.ts'
 import * as DesktopAuthentication from '@deepseek-ai/dsh-host-authentication-desktop'
@@ -157,6 +158,7 @@ async function main(): Promise<void> {
   installPlatformSessionPublisher(ctx, (session) => {
     if (process.connected) process.send?.({ type: 'platform-session', session })
   })
+  installTtokenAccountKey(ctx, TTOKEN_GATEWAY_KEY_REF)
   await ctx.plugin(DesktopAuthentication, { readSecret: () => secret }).await()
   if (!canPublish()) return
   const admission = ctx.connection.authentication.authenticate({

@@ -1,0 +1,11 @@
+# Login akun TTOken, digabung ke lapisan distribusi oleh `ttoken/apply-brand.mjs`.
+#
+# Plugin akun upstream diarahkan ke rute `/api/v1/code/desktop` di ttoken.dev
+# (docs/CODE-DESKTOP.md di repo TTOken). Selama `accountLogin` di
+# `ttoken/brand.json` mati, apply-brand.mjs menambahkan `disabled: true` ke
+# setiap baris di file ini. Nyalakan hanya setelah rute itu ter-deploy.
+#
+# Layanan akun sendiri selalu menyala di lapisan dasar (cordis.patch.yml);
+# file ini hanya memuat antarmukanya.
+- id: ui-settings-account
+- id: ui-account-notifications

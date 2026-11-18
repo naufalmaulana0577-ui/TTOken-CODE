@@ -56,8 +56,12 @@
 # sana: provider resmi DeepSeek dan pendukungnya, unggahan log sesi untuk
 # melatih model DeepSeek, pencarian native DeepSeek, impor riwayat chat dari
 # situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
+# Rute model akun DeepSeek juga mati: setelah login akun TTOken, chat memakai
+# rute TTOken Gateway di atas dengan key perangkat hasil login.
 # Halaman Plugins tidak mendaftar paket ini (HIDDEN_PACKAGES di apply-brand.mjs).
 - id: llm-deepseek
+  disabled: true
+- id: llm-deepseek-account
   disabled: true
 - id: deepseek-llm-api-extensions
   disabled: true
@@ -76,20 +80,27 @@
 - id: skill-badge
   disabled: true
 
-# Mati sampai diarahkan ke server TTOken: login akun dan notifikasinya,
-# pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya
-# adalah server DeepSeek.
-- id: deepseek-account
-  disabled: true
+# Mati sampai diarahkan ke server TTOken: pencarian dan pengambilan halaman
+# web. Alamat bawaannya adalah server DeepSeek. deepseek-auth hanya dipakai
+# rute itu dan rute model akun DeepSeek.
 - id: deepseek-auth
-  disabled: true
-- id: llm-deepseek-account
-  disabled: true
-- id: ui-settings-account
-  disabled: true
-- id: ui-account-notifications
   disabled: true
 - id: web-deepseek-api
   disabled: true
 - id: ui-settings-web-search
   disabled: true
+
+# Layanan akun diarahkan ke rute `/api/v1/code/desktop` di ttoken.dev
+# (docs/CODE-DESKTOP.md di repo TTOken). Layanan ini harus tetap menyala:
+# layar sambutan membaca status akunnya sebelum membuka jendela utama, dan
+# tanpa layanan itu aplikasi gagal saat mulai. Selama belum login, layanan
+# ini tidak menghubungi server mana pun. `config` mengganti seluruh config
+# baris upstream, jadi `desktopPlatform` disalin apa adanya dari
+# packages/bundle/base/cordis.patch.yml. Antarmuka login ada di
+# account.patch.yml.
+- id: deepseek-account
+  config:
+    desktopPlatform: !!js "ctx.get('profileContext')?.name === 'desktop' && ['darwin', 'win32'].includes(process.platform) ? process.platform : null"
+    platformOrigin: https://ttoken.dev
+    harnessOrigin: https://ttoken.dev
+    inferenceOrigin: https://api.ttoken.dev

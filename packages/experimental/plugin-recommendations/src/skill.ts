@@ -3,13 +3,14 @@ import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { BUNDLED_SKILL_RANK, type SkillCandidate } from '@deepseek-ai/dsh-skill'
 import type { BundleInfo } from '@deepseek-ai/dsh-plugin-manager/types'
+import { TTOKEN_HIDDEN_PACKAGES } from './ttoken-hidden.ts'
 
 /** Shipped optional plugins only; no arbitrary install target is accepted.
  * @param bundle - a profile bundle as the plugin manager reports it.
  * @returns whether a card may offer and enable it.
  */
 export function eligible(bundle: BundleInfo): boolean {
-  return bundle.official && bundle.optional && bundle.availability !== 'missing' && !["@deepseek-ai/dsh-llm-deepseek-api-key","@deepseek-ai/dsh-deepseek-llm-api-extensions","@deepseek-ai/dsh-plugin-package-inventory-deepseek","@deepseek-ai/dsh-session-log-deepseek","@deepseek-ai/dsh-web-search-deepseek","@deepseek-ai/dsh-deepseek-chat-import","@deepseek-ai/dsh-experimental-liveshare","@deepseek-ai/dsh-skill-badge","@deepseek-ai/dsh-experimental-badge-skill-bundle","@deepseek-ai/dsh-client-ui-settings-session-log","@deepseek-ai/dsh-deepseek-account","@deepseek-ai/dsh-deepseek-auth","@deepseek-ai/dsh-llm-deepseek-account","@deepseek-ai/dsh-client-ui-settings-account","@deepseek-ai/dsh-client-ui-account-notifications","@deepseek-ai/dsh-web-deepseek-api","@deepseek-ai/dsh-client-ui-settings-web-search","@deepseek-ai/dsh-client-product-analytics","@deepseek-ai/dsh-host-product-telemetry-otel","@deepseek-ai/dsh-session-telemetry-otel"].includes(bundle.name)
+  return bundle.official && bundle.optional && bundle.availability !== 'missing' && !TTOKEN_HIDDEN_PACKAGES.has(bundle.name)
     && bundle.readOnlyReason === undefined && bundle.error === undefined
 }
 

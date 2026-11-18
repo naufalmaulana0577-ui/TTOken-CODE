@@ -26,7 +26,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 8. **Ikon**.
 9. **Gambar merek** installer, layar sambutan, dan favicon. Aset upstream memuat logo resmi DeepSeek Harness. Penggantinya dibangun oleh `installer/generate-brand-assets.py` dari mark TTOken Code dan font Bricolage Grotesque milik web TTOken.
 10. **Penerbit** di metadata `.exe`, serta kunci registry dan nama mutex perintah PATH.
-11. **Layar sambutan** meminta API key TTOken Gateway dan tidak menawarkan login akun DeepSeek.
+11. **Layar sambutan** meminta API key TTOken Gateway. Tombol masuk dengan akun TTOken tampil hanya bila `accountLogin` di `brand.json` menyala.
 12. **Merek di dalam jendela**: mark dan wordmark (`FishLogo`, `BrandWordmark` di `ui-primitives`), nama build di sidebar, judul jendela, judul beranda, indikator berjalan, dan dekorasi paus piksel di beranda yang tidak lagi dipasang.
 13. **Identitas agent** di prompt sistem: model memperkenalkan diri sebagai TTOken Code.
 14. **Teks antarmuka** di semua kamus bahasa: "DeepSeek Harness", "DSH", dan "Harness" menjadi TTOken Code; contoh perintah `dsh` di dalam kurung dihapus. Hanya isi literal string yang disentuh.
@@ -35,6 +35,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 17. **Terjemahan reasoning** tetap memakai Bing atau Google; rute berbayar DeepSeek Flash tidak ditawarkan.
 18. **Prompt model** di plugin konteks mode Creator dan rekomendasi menyebut TTOken Code.
 19. **Halaman Plugins** tidak menampilkan nama paket upstream, dan paket di `HIDDEN_PACKAGES` tidak didaftar sama sekali, supaya tidak bisa dinyalakan lagi dari sana. Contoh nama paket di dialog instal menjadi `@author/plugin-name`.
+20. **Login akun TTOken.** Plugin akun upstream diarahkan ke rute `/api/v1/code/desktop` di ttoken.dev (`docs/CODE-DESKTOP.md` di repo TTOken): alamat rute, header token, halaman persetujuan, saldo Rupiah, teks "akun TTOken" di delapan bahasa. Key perangkat hasil login otomatis menjadi API key rute TTOken Gateway (`host/account-key-mirror.ts`), jadi rute model akun DeepSeek tidak dipakai. Pemakaian dan Isi saldo membuka dashboard ttoken.dev di browser. Layanan akunnya selalu menyala karena layar sambutan membaca statusnya; antarmukanya (`layer/account.patch.yml`) dan tombol masuk menyala lewat `accountLogin`.
 
 
 
@@ -89,10 +90,10 @@ Urut dari yang paling menghalangi rilis:
 
 1. **Layanan kebijakan update.** Build bertanda tangan mewajibkan origin kebijakan. Aplikasi menghubunginya untuk memutuskan apakah user dipaksa update. Sebelum rilis publik perlu endpoint di domain TTOken.
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
-3. **Login akun DeepSeek** sudah disembunyikan dari layar sambutan, tetapi plugin akunnya masih terpasang dan masih bisa muncul di pengaturan. Perlu diganti login akun TTOken.
+3. **Menyalakan login akun TTOken.** Sisi aplikasi sudah siap (aturan 20). Server ada di branch `feat/code-desktop-login` repo TTOken. Setelah API dan web itu ter-deploy: set `"accountLogin": true` di `brand.json`, jalankan `node ttoken/apply-brand.mjs`, commit, push.
 4. **Tampilan di dalam jendela** sudah bermerek TTOken Code, tetapi tema warna, tata letak tiga kolom, dan teks antarmukanya masih milik upstream. Tahap berikutnya: token tema TTOken, lalu tata letak baru. Penyebutan nama upstream yang tersisa di teks pengaturan dan bantuan perlu disisir.
 5. **Tagline layar sambutan** masih milik DeepSeek ("Build potential. Explore intelligence.", kunci `welcomeDescription` di `apps/desktop/src/locale.ts`, delapan bahasa). Menunggu tagline TTOken dari pemilik produk.
-6. **API key otomatis dari akun TTOken.** Layar sambutan sekarang meminta user menempelkan API key. Tujuannya: user login akun TTOken, lalu aplikasi menerima key Gateway tanpa disalin tangan. Butuh endpoint otorisasi di API TTOken; skema `ttoken-code://` sudah terdaftar untuk jalur baliknya.
+6. **Pencarian web dan analitik** masih mati; keduanya butuh layanan di server TTOken (endpoint pencarian dan pengambilan halaman di Gateway, kolektor OTLP).
 7. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.
 8. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
 9. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.
@@ -100,10 +101,13 @@ Urut dari yang paling menghalangi rilis:
 
 ## Yang sengaja dimatikan
 
-`layer/cordis.patch.yml` mematikan dua kelompok plugin:
+`layer/cordis.patch.yml` dan `layer/account.patch.yml` mematikan tiga kelompok plugin. Halaman Plugins tidak mendaftar semuanya (`HIDDEN_PACKAGES` di `apply-brand.mjs`):
 
-- **Tetap mati**, karena hanya berguna dengan layanan DeepSeek atau mengirim data ke sana: provider resmi DeepSeek dan pendukungnya, unggahan log sesi, pencarian native DeepSeek, impor chat dari situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
-- **Mati sampai diarahkan ke server TTOken**: login akun dan notifikasinya, pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya adalah server DeepSeek. Begitu diarahkan, hapus barisnya dari lapisan dan namanya dari `HIDDEN_PACKAGES`.
+- **Tetap mati**, karena hanya berguna dengan layanan DeepSeek, mengirim data ke sana, atau digantikan rute TTOken Gateway: provider resmi DeepSeek dan pendukungnya, rute model akun DeepSeek, unggahan log sesi, pencarian native DeepSeek, impor chat dari situs DeepSeek, berbagi sesi lewat server terpisah, dan skill lencana DSH.
+- **Mati sampai server TTOken siap**: pencarian dan pengambilan halaman web, serta analitik. Alamat bawaannya adalah server DeepSeek. Begitu diarahkan, hapus barisnya dari lapisan dan namanya dari `PENDING_PACKAGES`.
+- **Antarmuka login akun**, mati selama `accountLogin` mati.
+
+Layanan akun (`deepseek-account`) selalu menyala tetapi tidak didaftar di halaman Plugins: tanpa layanan itu layar sambutan gagal membaca status akun dan aplikasi gagal saat mulai.
 
 ## Nama upstream yang masih ada
 

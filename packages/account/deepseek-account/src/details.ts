@@ -12,7 +12,7 @@ const user = z.object({
 // grammar also accepts an omitted integer or fraction part and a decimal exponent (0E-16, 1e+3).
 const decimal = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
 const wallet = z.object({
-  currency: z.enum(['CNY', 'USD']), balance: z.string().regex(decimal),
+  currency: z.enum(['CNY', 'USD', 'IDR']), balance: z.string().regex(decimal),
 })
 const summary = z.object({ normal_wallets: z.array(wallet), bonus_wallets: z.array(wallet) })
 /** Project Platform user data without retaining credentials or unneeded fields.
@@ -46,13 +46,13 @@ function accountPayload<T>(schema: z.ZodType<T>, value: unknown, field: 'profile
 }
 
 const queries: { [K in keyof AccountDetails]: {
-  path: '/auth-api/v0/users/current' | '/api/v0/users/get_user_summary'
+  path: '/api/v1/code/desktop/me' | '/api/v1/code/desktop/wallet'
   parse: (value: unknown) => AccountDetails[K]
 } } = {
-  profile: { path: '/auth-api/v0/users/current', parse: value => ({
+  profile: { path: '/api/v1/code/desktop/me', parse: value => ({
     status: 'ready', value: projectProfile(accountPayload(user, value, 'profile')),
   }) },
-  balance: { path: '/api/v0/users/get_user_summary', parse: (value) => {
+  balance: { path: '/api/v1/code/desktop/wallet', parse: (value) => {
     const parsed = accountPayload(summary, value, 'balance')
     return { status: 'ready', value: parsed.normal_wallets, bonusWallets: parsed.bonus_wallets }
   } },

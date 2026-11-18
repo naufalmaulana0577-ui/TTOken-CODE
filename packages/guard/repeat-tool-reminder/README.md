@@ -50,6 +50,7 @@ When you want to change when reminders fire or which tools they cover, mount the
 | `include` | `[]` | Only these tools are tracked; empty means every tool |
 | `exclude` | `[]` | These tools are never tracked; calls to them neither count nor reset |
 | `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |
+| `stepLimit` | `20` | TTOken Code: model steps one task may take, counted from the agent's last user message; the next step asks the model to stop and ask the user, and two steps later the step is rejected. `0` turns it off. The composer edits it live. |
 
 Invalid configuration fails at startup with a clear error — an empty `thresholds` list, a repeat count below 2, or a duplicate — never a silent change of behavior. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-repeat-tool-reminder) documents every accepted value.
 

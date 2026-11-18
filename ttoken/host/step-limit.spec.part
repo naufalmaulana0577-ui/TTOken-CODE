@@ -1,0 +1,50 @@
+
+describe('TTOken Code step limit', () => {
+  /** Boot the spine with the guard at one step limit; repeat reminders stay out of reach of these short runs. */
+  async function limited(stepLimit: number): Promise<Context> {
+    const ctx = new Context()
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(RepeatToolGuard, { stepLimit })
+    ctx.tools.register(defineContentToolFixture({ name: 'probe', description: 'p', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
+    return ctx
+  }
+
+  /** Distinct calls, so no repeat reminder fires, then a final answer. */
+  const calls = (count: number) => [
+    ...Array.from({ length: count }, (_, i) => toolCallResponse(`c${i}`, 'probe', { q: i })),
+    textResponse('done'),
+  ]
+
+  async function run(ctx: Context, adapter: MockAdapter): Promise<Agent> {
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('limit'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+    return agent
+  }
+
+  it('adds the notice to the first step past the limit and rejects the step after the overrun', async () => {
+    const ctx = await limited(2)
+    const adapter = new MockAdapter(calls(10))
+    const agent = await run(ctx, adapter)
+
+    // Steps 1-2 run, step 3 carries the notice, steps 4-5 overrun, step 6 is rejected.
+    expect(adapter.requests).toHaveLength(5)
+    expect(reminders(agent)).toEqual([{
+      text: 'You have used 2 steps on this task, the step limit the user set. '
+        + 'Stop calling tools now. Reply with a short summary of what is done and what remains, '
+        + 'and ask the user whether to continue.',
+      source: { kind: 'repeat-tool-reminder', form: 'notice', summary: 'step limit 2' },
+    }])
+  })
+
+  it('stops counting at a step limit of 0', async () => {
+    const ctx = await limited(0)
+    const adapter = new MockAdapter(calls(6))
+    const agent = await run(ctx, adapter)
+
+    expect(adapter.requests).toHaveLength(7)
+    expect(reminders(agent)).toEqual([])
+  })
+})

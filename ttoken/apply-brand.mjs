@@ -1306,6 +1306,31 @@ editFile({
     ],
   ],
 })
+editFile({
+  name: 'mode (uji: persiapan)',
+  path: 'packages/client/ui-plan/tests/plan-mode-control.client.spec.tsx',
+  pairs: [
+    [
+      ` * PlanChip over the \`plan\` projection: nothing renders while the capability\n * is absent or the effective target is the default mode; while plan mode is\n * the target, the chip executes /plan off and remains visible through failures\n * until the projection confirms the exit.\n`,
+      ` * PlanChip over the \`plan\` projection: nothing renders while the capability\n * is absent; otherwise the trigger names the effective target, and choosing\n * the other mode executes /plan or /plan off, reporting failures in place\n * until the projection confirms the change.\n`,
+    ],
+    [
+      `  exitPlanMode = vi.fn(() => Promise.resolve<string | null>(null)),\n  locked = false,\n`,
+      `  exitPlanMode = vi.fn(() => Promise.resolve<string | null>(null)),\n  enterPlanMode = vi.fn(() => Promise.resolve<string | null>(null)),\n  locked = false,\n`,
+    ],
+    [
+      `  const props = { useProjection, locked, exitPlanMode, t } as unknown as PlanChipProps\n  const view = render(<PlanChip {...props} />)\n  return { store, exitPlanMode, view }\n`,
+      `  const props = { useProjection, locked, exitPlanMode, enterPlanMode, t } as unknown as PlanChipProps\n  const view = render(<PlanChip {...props} />)\n  return { store, exitPlanMode, enterPlanMode, view }\n`,
+    ],
+  ],
+})
+replaceRegion({
+  name: 'mode (uji: perilaku)',
+  path: 'packages/client/ui-plan/tests/plan-mode-control.client.spec.tsx',
+  start: `const chip = () => screen.getByRole('button', { name: '计划模式已开启，按下关闭' })\n`,
+  end: '',
+  content: clientPart('plan/plan-mode-control.spec.part'),
+})
 const MODE_COPY = {
   zh: ['智能体模式', '计划模式', '读取、修改并运行命令', '先写计划，不做修改', '模式：{name}', '进入计划模式失败'],
   en: ['Agent mode', 'Plan mode', 'Reads, edits and runs commands', 'Writes a plan first, changes nothing', 'Mode: {name}', 'Failed to enter plan mode'],
@@ -1376,6 +1401,100 @@ editFile({
   }
 }
 `,
+  ]],
+})
+
+// 24d. Batas langkah per tugas. Penjaga loop repeat-tool-reminder mendapat field
+//      volatile `stepLimit` (bawaan 20): langkah dihitung per agent sejak pesan user
+//      terakhir; di batas, langkah berikutnya membawa catatan agar model berhenti dan
+//      bertanya, dan dua langkah setelahnya langkah ditolak. Composer mengubahnya
+//      lewat namespace pengaturan `repeat-tool-reminder`.
+editFile({
+  name: 'batas langkah (penjaga)',
+  path: 'packages/guard/repeat-tool-reminder/src/index.ts',
+  pairs: [
+    [`import z from '@deepseek-ai/schemastery'\n`, `import z from '@deepseek-ai/schemastery'\nimport type { Volatile } from '@deepseek-ai/cosmokit'\n`],
+    [
+      `  argumentsPreviewChars?: number\n}\n\nexport const Config: z<Config> = z.object({\n  thresholds: z.array(z.number()).default([3, 5, 8]),\n  include: z.array(z.string()).default([]),\n  exclude: z.array(z.string()).default([]),\n  argumentsPreviewChars: z.number().default(500),\n})\n`,
+      `  argumentsPreviewChars?: number
+  /**
+   * TTOken Code: model steps one task may take, counted from the agent's last
+   * user message, before the guard asks the model to stop and ask the user;
+   * \`0\` turns the limit off (default 20). Volatile: a change applies from the next step.
+   */
+  stepLimit?: Volatile<number>
+}
+
+/** Raw configuration: {@link Config} with \`stepLimit\` as the plain number cordis.yml and settings write. */
+export type ConfigInput = Omit<Config, 'stepLimit'> & { stepLimit?: number }
+
+export const Config: z<ConfigInput, Config> = z.object({
+  thresholds: z.array(z.number()).default([3, 5, 8]),
+  include: z.array(z.string()).default([]),
+  exclude: z.array(z.string()).default([]),
+  argumentsPreviewChars: z.number().default(500),
+  stepLimit: z.number().step(1).min(0).default(20).volatile(),
+}) as z<ConfigInput, Config>
+`,
+    ],
+    [
+      `const REMINDER_SOURCE: MessageSource = { kind: 'repeat-tool-reminder' }\n`,
+      `const REMINDER_SOURCE: MessageSource = { kind: 'repeat-tool-reminder' }
+
+/** TTOken Code: steps the model may still take after the step-limit notice before the guard rejects the next one. */
+const STEP_LIMIT_OVERRUN = 2
+
+/**
+ * TTOken Code: the notice added to the first step past the step limit.
+ * @param limit - the step limit in force.
+ * @returns the logged notice asking the model to stop and ask the user.
+ */
+function stepLimitNotice(limit: number): UserMessage {
+  return createUserMessage({
+    content: [{
+      type: 'text',
+      text: \`You have used \${limit} steps on this task, the step limit the user set. \`
+        + 'Stop calling tools now. Reply with a short summary of what is done and what remains, '
+        + 'and ask the user whether to continue.',
+    }],
+    source: { ...REMINDER_SOURCE, form: 'notice', summary: \`step limit \${limit}\` },
+  })
+}
+`,
+    ],
+    [
+      `    if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)\n    return next()\n  })\n}\n`,
+      `    if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)\n    return next()\n  })\n${clientPart('../host/step-limit.ts.part')}}\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'batas langkah (uji: tipe konfigurasi)',
+  path: 'packages/guard/repeat-tool-reminder/tests/repeat-tool-reminder.spec.ts',
+  pairs: [[
+    `import type { Config } from '@deepseek-ai/dsh-repeat-tool-reminder'\n`,
+    `import type { ConfigInput as Config } from '@deepseek-ai/dsh-repeat-tool-reminder'\n`,
+  ]],
+})
+{
+  // Uji perilaku batas langkah ditambahkan di akhir suite penjaga.
+  const path = 'packages/guard/repeat-tool-reminder/tests/repeat-tool-reminder.spec.ts'
+  const spec = clientPart('../host/step-limit.spec.part')
+  const text = readFileSync(join(ROOT, path), 'utf8')
+  if (text.includes(spec)) report.push('batas langkah (uji): sudah diterapkan')
+  else if (CHECK) failures.push(`batas langkah (uji): ${path} belum disunting`)
+  else {
+    if (!DRY) writeFileSync(join(ROOT, path), text + spec)
+    report.push(`batas langkah (uji): ditambahkan${DRY ? ' (rencana)' : ''}`)
+  }
+}
+editFile({
+  name: 'batas langkah (README)',
+  path: 'packages/guard/repeat-tool-reminder/README.md',
+  pairs: [[
+    '| `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |\n',
+    '| `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |\n'
+      + '| `stepLimit` | `20` | TTOken Code: model steps one task may take, counted from the agent\'s last user message; the next step asks the model to stop and ask the user, and two steps later the step is rejected. `0` turns it off. The composer edits it live. |\n',
   ]],
 })
 

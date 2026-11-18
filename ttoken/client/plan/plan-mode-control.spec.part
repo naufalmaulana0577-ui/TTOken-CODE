@@ -1,0 +1,90 @@
+const trigger = (name: '智能体模式' | '计划模式') => screen.getByRole('button', { name: `模式：${name}` })
+const choose = (name: RegExp) => { fireEvent.click(screen.getByRole('menuitem', { name })) }
+
+describe('PlanChip', () => {
+  it('renders nothing for an absent capability', () => {
+    const absent = setup(undefined)
+    expect(absent.view.container.innerHTML).toBe('')
+  })
+
+  it('names the effective target: Agent mode by default and while leaving, Plan mode while active or entering', () => {
+    setup({ active: false, pending: false })
+    expect(trigger('智能体模式').textContent).toBe('智能体模式')
+    expect(trigger('智能体模式').classList.contains(css.mode!)).toBe(true)
+    cleanup()
+    setup({ active: true, pending: true })
+    expect(trigger('智能体模式')).toBeTruthy()
+    cleanup()
+    setup({ active: true, pending: false })
+    expect(trigger('计划模式').textContent).toBe('计划模式')
+    cleanup()
+    setup({ active: false, pending: true })
+    expect(trigger('计划模式')).toBeTruthy()
+  })
+
+  it('enters plan mode once from the menu and ignores choosing the current mode', async () => {
+    const { exitPlanMode, enterPlanMode } = setup({ active: false, pending: false })
+    fireEvent.click(trigger('智能体模式'))
+    choose(/^智能体模式/)
+    expect(enterPlanMode).not.toHaveBeenCalled()
+    fireEvent.click(trigger('智能体模式'))
+    choose(/^计划模式/)
+    expect(enterPlanMode).toHaveBeenCalledTimes(1)
+    expect(exitPlanMode).not.toHaveBeenCalled()
+    await waitFor(() => { expect((trigger('智能体模式') as HTMLButtonElement).disabled).toBe(false) })
+  })
+
+  it('leaves plan mode from the menu and follows the projection down', async () => {
+    const { store, exitPlanMode } = setup({ active: true, pending: false })
+    fireEvent.click(trigger('计划模式'))
+    choose(/^智能体模式/)
+    expect(exitPlanMode).toHaveBeenCalledTimes(1)
+    store.set({ value: { active: true, pending: true } })
+    await waitFor(() => { expect(trigger('智能体模式')).toBeTruthy() })
+  })
+
+  it('disables under the locked owner prop', () => {
+    setup({ active: true, pending: false }, vi.fn(), vi.fn(), true)
+    expect((trigger('计划模式') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('surfaces admission and transport failures in the direction that failed', async () => {
+    const exitPlanMode = vi.fn()
+      .mockResolvedValueOnce('host said no')
+      .mockRejectedValueOnce(new Error('network down'))
+    setup({ active: true, pending: false }, exitPlanMode)
+    fireEvent.click(trigger('计划模式'))
+    choose(/^智能体模式/)
+    expect((await screen.findByText('退出计划模式失败')).getAttribute('title')).toBe('host said no')
+    fireEvent.click(trigger('计划模式'))
+    choose(/^智能体模式/)
+    expect(await screen.findByTitle('network down')).toBeTruthy()
+    cleanup()
+
+    const enterPlanMode = vi.fn().mockRejectedValueOnce('socket closed')
+    setup({ active: false, pending: false }, vi.fn(), enterPlanMode)
+    fireEvent.click(trigger('智能体模式'))
+    choose(/^计划模式/)
+    expect((await screen.findByText('进入计划模式失败')).getAttribute('title')).toBe('socket closed')
+  })
+
+  it('ignores in-flight fulfillment and rejection after unmount', () => {
+    let resolve!: (value: string | null) => void
+    const successful = setup(
+      { active: true, pending: false },
+      vi.fn(() => new Promise<string | null>((done) => { resolve = done })),
+    )
+    fireEvent.click(trigger('计划模式'))
+    choose(/^智能体模式/)
+    successful.view.unmount()
+    expect(() => { resolve(null) }).not.toThrow()
+
+    let reject!: (reason: unknown) => void
+    const enterPlanMode = vi.fn(() => new Promise<string | null>((_done, fail) => { reject = fail }))
+    const { view } = setup({ active: false, pending: false }, vi.fn(), enterPlanMode)
+    fireEvent.click(trigger('智能体模式'))
+    choose(/^计划模式/)
+    view.unmount()
+    expect(() => { reject(new Error('late')) }).not.toThrow()
+  })
+})

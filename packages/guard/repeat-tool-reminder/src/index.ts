@@ -8,6 +8,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { Volatile } from '@deepseek-ai/cosmokit'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
@@ -47,14 +48,24 @@ export interface Config {
    * always compares the FULL canonical string).
    */
   argumentsPreviewChars?: number
+  /**
+   * TTOken Code: model steps one task may take, counted from the agent's last
+   * user message, before the guard asks the model to stop and ask the user;
+   * `0` turns the limit off (default 20). Volatile: a change applies from the next step.
+   */
+  stepLimit?: Volatile<number>
 }
 
-export const Config: z<Config> = z.object({
+/** Raw configuration: {@link Config} with `stepLimit` as the plain number cordis.yml and settings write. */
+export type ConfigInput = Omit<Config, 'stepLimit'> & { stepLimit?: number }
+
+export const Config: z<ConfigInput, Config> = z.object({
   thresholds: z.array(z.number()).default([3, 5, 8]),
   include: z.array(z.string()).default([]),
   exclude: z.array(z.string()).default([]),
   argumentsPreviewChars: z.number().default(500),
-})
+  stepLimit: z.number().step(1).min(0).default(20).volatile(),
+}) as z<ConfigInput, Config>
 
 /**
  * The `{kind:'repeat-tool-reminder'}` producer source stamped on every reminder
@@ -62,6 +73,26 @@ export const Config: z<Config> = z.object({
  * render as a user prompt in derived history).
  */
 const REMINDER_SOURCE: MessageSource = { kind: 'repeat-tool-reminder' }
+
+/** TTOken Code: steps the model may still take after the step-limit notice before the guard rejects the next one. */
+const STEP_LIMIT_OVERRUN = 2
+
+/**
+ * TTOken Code: the notice added to the first step past the step limit.
+ * @param limit - the step limit in force.
+ * @returns the logged notice asking the model to stop and ask the user.
+ */
+function stepLimitNotice(limit: number): UserMessage {
+  return createUserMessage({
+    content: [{
+      type: 'text',
+      text: `You have used ${limit} steps on this task, the step limit the user set. `
+        + 'Stop calling tools now. Reply with a short summary of what is done and what remains, '
+        + 'and ask the user whether to continue.',
+    }],
+    source: { ...REMINDER_SOURCE, form: 'notice', summary: `step limit ${limit}` },
+  })
+}
 
 /**
  * The gentle first-threshold reminder. Keyed to `thresholds[0]`, not a literal
@@ -228,5 +259,24 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('agent/pre-step', ({ agent, messages }, next): Promise<PreStepDecision> => {
     if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)
     return next()
+  })
+
+  // TTOken Code: the per-task step limit. Steps count per agent from the last
+  // user message; agents that never receive one (subagents) are not limited.
+  // At the limit the next step carries a notice asking the model to stop and
+  // ask the user; past it by STEP_LIMIT_OVERRUN steps the step is rejected.
+  const stepLimit = config.stepLimit
+  const steps = new WeakMap<Agent, number>()
+  ctx.on('agent/pre-step', async ({ agent, messages }, next): Promise<PreStepDecision> => {
+    if (messages.some(message => message.source.kind === 'user')) steps.set(agent, 0)
+    const taken = steps.get(agent)
+    const limit = stepLimit?.get() ?? 0
+    if (taken === undefined || limit === 0) return next()
+    const step = taken + 1
+    steps.set(agent, step)
+    if (step > limit + 1 + STEP_LIMIT_OVERRUN) return { kind: 'reject' }
+    const decision = await next()
+    if (decision.kind !== 'enter' || step !== limit + 1) return decision
+    return { ...decision, messages: [...decision.messages, stepLimitNotice(limit)] }
   })
 }

@@ -1,0 +1,19 @@
+
+  // TTOken Code: the per-task step limit. Steps count per agent from the last
+  // user message; agents that never receive one (subagents) are not limited.
+  // At the limit the next step carries a notice asking the model to stop and
+  // ask the user; past it by STEP_LIMIT_OVERRUN steps the step is rejected.
+  const stepLimit = config.stepLimit
+  const steps = new WeakMap<Agent, number>()
+  ctx.on('agent/pre-step', async ({ agent, messages }, next): Promise<PreStepDecision> => {
+    if (messages.some(message => message.source.kind === 'user')) steps.set(agent, 0)
+    const taken = steps.get(agent)
+    const limit = stepLimit?.get() ?? 0
+    if (taken === undefined || limit === 0) return next()
+    const step = taken + 1
+    steps.set(agent, step)
+    if (step > limit + 1 + STEP_LIMIT_OVERRUN) return { kind: 'reject' }
+    const decision = await next()
+    if (decision.kind !== 'enter' || step !== limit + 1) return decision
+    return { ...decision, messages: [...decision.messages, stepLimitNotice(limit)] }
+  })

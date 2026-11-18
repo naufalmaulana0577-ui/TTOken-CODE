@@ -11,6 +11,10 @@ export const zh = {
   'folder.title': '工作文件夹：{path}',
   'branch.title': '当前 Git 分支',
   'branch.detached': '分离的 HEAD，位于提交 {commit}',
+  'steps.label': '{count} 步',
+  'steps.off': '不限步数',
+  'steps.none': '不限',
+  'steps.title': '每个任务的步数上限',
 } satisfies Record<string, string>
 
 /** Composer chip copy keys. */
@@ -21,6 +25,10 @@ export const en = {
   'folder.title': 'Working folder: {path}',
   'branch.title': 'Current Git branch',
   'branch.detached': 'Detached HEAD at commit {commit}',
+  'steps.label': '{count} steps',
+  'steps.off': 'No step limit',
+  'steps.none': 'No limit',
+  'steps.title': 'Step limit per task',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Japanese dictionary. */
@@ -28,6 +36,10 @@ export const ja = {
   'folder.title': '作業フォルダー: {path}',
   'branch.title': '現在の Git ブランチ',
   'branch.detached': 'コミット {commit} の detached HEAD',
+  'steps.label': '{count} ステップ',
+  'steps.off': 'ステップ上限なし',
+  'steps.none': '上限なし',
+  'steps.title': 'タスクごとのステップ上限',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Spanish dictionary. */
@@ -35,6 +47,10 @@ export const es = {
   'folder.title': 'Carpeta de trabajo: {path}',
   'branch.title': 'Rama de Git actual',
   'branch.detached': 'HEAD separado en el commit {commit}',
+  'steps.label': '{count} pasos',
+  'steps.off': 'Sin límite de pasos',
+  'steps.none': 'Sin límite',
+  'steps.title': 'Límite de pasos por tarea',
 } satisfies Record<TtokenComposerKey, string>
 
 /** French dictionary. */
@@ -42,6 +58,10 @@ export const fr = {
   'folder.title': 'Dossier de travail : {path}',
   'branch.title': 'Branche Git actuelle',
   'branch.detached': 'HEAD détachée sur le commit {commit}',
+  'steps.label': '{count} étapes',
+  'steps.off': 'Pas de limite d’étapes',
+  'steps.none': 'Aucune limite',
+  'steps.title': 'Limite d’étapes par tâche',
 } satisfies Record<TtokenComposerKey, string>
 
 /** German dictionary. */
@@ -49,6 +69,10 @@ export const de = {
   'folder.title': 'Arbeitsordner: {path}',
   'branch.title': 'Aktueller Git-Branch',
   'branch.detached': 'Losgelöster HEAD bei Commit {commit}',
+  'steps.label': '{count} Schritte',
+  'steps.off': 'Kein Schrittlimit',
+  'steps.none': 'Kein Limit',
+  'steps.title': 'Schrittlimit pro Aufgabe',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Russian dictionary. */
@@ -56,6 +80,10 @@ export const ru = {
   'folder.title': 'Рабочая папка: {path}',
   'branch.title': 'Текущая ветка Git',
   'branch.detached': 'Отсоединённый HEAD на коммите {commit}',
+  'steps.label': '{count} шагов',
+  'steps.off': 'Без лимита шагов',
+  'steps.none': 'Без лимита',
+  'steps.title': 'Лимит шагов на задачу',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Portuguese dictionary. */
@@ -63,6 +91,10 @@ export const pt = {
   'folder.title': 'Pasta de trabalho: {path}',
   'branch.title': 'Branch do Git atual',
   'branch.detached': 'HEAD desanexado no commit {commit}',
+  'steps.label': '{count} passos',
+  'steps.off': 'Sem limite de passos',
+  'steps.none': 'Sem limite',
+  'steps.title': 'Limite de passos por tarefa',
 } satisfies Record<TtokenComposerKey, string>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

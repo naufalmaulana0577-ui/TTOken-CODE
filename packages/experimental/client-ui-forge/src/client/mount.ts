@@ -56,6 +56,7 @@ import { WorktreeProgress, type WorktreeProgressInjected } from './WorktreeProgr
 import { WorktreeSettings } from './WorktreeSettings.tsx'
 import { WorktreeSettingsForm, type WorktreeSettings as WorktreeSettingsFields } from './worktree-settings-form.ts'
 import { WorktreeToggle, type WorktreeToggleInjected } from './WorktreeToggle.tsx'
+import { installTtokenIssues } from './ttoken-issues/install.ts'
 
 /** Services required before the Remote contribution mounts. */
 export const inject = ['remote', 'slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'configForms', 'remoteAccess', 'workspaces', 'uiWorkspace']
@@ -492,6 +493,7 @@ function registerUi(ctx: Context): void {
   ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
     name: 'plugins.row.config', key: WORKTREE_ROW_KEY, locale: NS, inject: () => worktreeSettings.inject(),
   }, WorktreeSettings))
+  installTtokenIssues(ctx, openLink)
 }
 
 /**

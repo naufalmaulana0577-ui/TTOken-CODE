@@ -1150,6 +1150,15 @@ function clientPart(path) {
   return readFileSync(join(ROOT, 'ttoken', 'client', path), 'utf8')
 }
 
+/**
+ * Baca potongan sumber dari `ttoken/forge/`.
+ * @param path Path relatif terhadap `ttoken/forge/`.
+ * @returns Isi berkas.
+ */
+function forgePart(path) {
+  return readFileSync(join(ROOT, 'ttoken', 'forge', path), 'utf8')
+}
+
 // 22. Palet TTOken Code dari desain desktop: permukaan putih hangat dengan tombol
 //     hitam di skema terang, permukaan hitam netral di skema gelap. Dipasang
 //     sebagai satu lapisan override token, jadi semua komponen ikut tanpa CSS per komponen.
@@ -1496,6 +1505,145 @@ editFile({
     '| `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |\n'
       + '| `stepLimit` | `20` | TTOken Code: model steps one task may take, counted from the agent\'s last user message; the next step asks the model to stop and ask the user, and two steps later the step is rejected. `0` turns it off. The composer edits it live. |\n',
   ]],
+})
+
+// 24e. Papan issue GitHub (Host). Paket forge mendapat tipe issue dan metode
+//      opsional `listIssues` di provider; forge-github membacanya lewat satu
+//      permintaan GraphQL `gh`; Remote panel forge mendapat `issues(session)`
+//      untuk repositori checkout Session. Papannya ada di bundel forge, jadi
+//      tampil setelah "Change requests & worktrees" dinyalakan di halaman Plugins.
+editFile({
+  name: 'issue (tipe forge)',
+  path: 'packages/experimental/forge/src/types.ts',
+  pairs: [
+    [
+      `  /** Read the description and labels of a change request. Omission declares that this provider reads no descriptions. */\n`,
+      `  /** TTOken Code: read the open and recently closed issues of a repository. Omission declares that this provider reads no issues. */\n  listIssues?(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure>\n  /** Read the description and labels of a change request. Omission declares that this provider reads no descriptions. */\n`,
+    ],
+    [
+      `  /** Human-readable cause. */\n  readonly message: string\n}\n`,
+      `  /** Human-readable cause. */\n  readonly message: string\n}\n${forgePart('types.ts.part')}`,
+    ],
+  ],
+})
+editFile({
+  name: 'issue (registri forge)',
+  path: 'packages/experimental/forge/src/index.ts',
+  pairs: [
+    [
+      `  ForgeViewedFiles, ForgeViewedRequest, ForgeViewerFilter, ForgeViewerList, ForgeViewerQuery, ForgeViewerSource, MergeRequest,\n} from './types.ts'\n`,
+      `  ForgeViewedFiles, ForgeViewedRequest, ForgeViewerFilter, ForgeViewerList, ForgeViewerQuery, ForgeViewerSource, MergeRequest,\n  ForgeIssueList,\n} from './types.ts'\n`,
+    ],
+    [
+      `        ?? Promise.resolve({ code: 'unsupported', message: 'This provider does not read descriptions' } as const))\n  }\n`,
+      `        ?? Promise.resolve({ code: 'unsupported', message: 'This provider does not read descriptions' } as const))\n  }\n
+  /**
+   * TTOken Code: read the open and recently closed issues of a repository.
+   * @param repository - repository served by a registered provider.
+   * @param signal - request cancellation.
+   * @returns the issues, or why the host did not provide them; \`unsupported\` when the provider reads no issues.
+   */
+  async listIssues(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure> {
+    return await this.invoke(this.registration(repository.forge), signal,
+      (provider, operation) => provider.listIssues?.(repository, operation)
+        ?? Promise.resolve({ code: 'unsupported', message: 'This provider does not read issues' } as const))
+  }
+`,
+    ],
+  ],
+})
+writeGenerated('issue (pembaca GitHub)', 'packages/experimental/forge-github/src/issues.ts', forgePart('issues.ts'))
+writeGenerated('issue (uji pembaca GitHub)', 'packages/experimental/forge-github/tests/issues.spec.ts', forgePart('issues.spec.ts'))
+editFile({
+  name: 'issue (provider GitHub)',
+  path: 'packages/experimental/forge-github/src/provider.ts',
+  pairs: [
+    [`import { readDescription } from './description.ts'\n`, `import { readDescription } from './description.ts'\nimport { readIssues } from './issues.ts'\n`],
+    [
+      `  ForgeReviewRequest, ForgeReviewResult, ForgeReviewWrite, ForgeReviewWriteResult, ForgeViewedFiles, ForgeViewedRequest, MergeRequest,\n} from '@deepseek-ai/dsh-experimental-forge'\n`,
+      `  ForgeReviewRequest, ForgeReviewResult, ForgeReviewWrite, ForgeReviewWriteResult, ForgeViewedFiles, ForgeViewedRequest, MergeRequest,\n  ForgeIssueList,\n} from '@deepseek-ai/dsh-experimental-forge'\n`,
+    ],
+    [
+      `  async readDescription(ref: ChangeRequestRef, signal: AbortSignal): Promise<ChangeRequestDescription | ForgeFailure> {\n    const failure = this.hostFailure(ref.repository.host)\n    if (failure !== undefined) return failure\n    return await readDescription(this.graphql, ref, signal)\n  }\n`,
+      `  async readDescription(ref: ChangeRequestRef, signal: AbortSignal): Promise<ChangeRequestDescription | ForgeFailure> {\n    const failure = this.hostFailure(ref.repository.host)\n    if (failure !== undefined) return failure\n    return await readDescription(this.graphql, ref, signal)\n  }\n\n  /**\n   * TTOken Code: read the open and recently closed issues of a repository through GraphQL.\n   * @see readIssues\n   */\n  async listIssues(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure> {\n    const failure = this.hostFailure(repository.host)\n    if (failure !== undefined) return failure\n    return await readIssues(this.graphql, repository, signal)\n  }\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'issue (tipe panel)',
+  path: 'packages/experimental/client-ui-forge/src/types.ts',
+  pairs: [
+    [
+      `  ForgeReadiness, ForgeRepository, ForgeViewerFilter,\n} from '@deepseek-ai/dsh-experimental-forge/types'\n`,
+      `  ForgeReadiness, ForgeRepository, ForgeViewerFilter, ForgeIssueList,\n} from '@deepseek-ai/dsh-experimental-forge/types'\n`,
+    ],
+    [
+      `/** Git facts for the checkout that contains the Session's current directory. */\n`,
+      `/** TTOken Code: the issues board of a Session's repository. */\nexport interface ForgeIssueBoard extends ForgeIssueList {\n  /** Repository as \`owner/name\`. */\n  readonly repository: string\n  /** Code host of the repository, such as \`github.com\`. */\n  readonly host: string\n}\n\n/** Git facts for the checkout that contains the Session's current directory. */\n`,
+    ],
+    [
+      `    /** No registered provider serves the change request URL. */\n    'forgePanel/unrecognized-url': Record<string, never>\n`,
+      `    /** No registered provider serves the change request URL. */\n    'forgePanel/unrecognized-url': Record<string, never>\n    /** TTOken Code: no remote of the checkout names a repository a code host provider serves. */\n    'forgePanel/issues-unavailable': Record<string, never>\n    /** TTOken Code: the code host did not provide the repository's issues; the message says why. */\n    'forgePanel/issues-failed': Record<string, never>\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'issue (Remote panel)',
+  path: 'packages/experimental/client-ui-forge/src/index.ts',
+  pairs: [
+    [`  Config, ForgeBaseBranches, ForgeChangeRequestDiff,`, `  Config, ForgeBaseBranches, ForgeIssueBoard, ForgeChangeRequestDiff,`],
+    [
+      `    this.home.forgeSession.track(session, url)\n  }\n`,
+      `    this.home.forgeSession.track(session, url)\n  }\n
+  /**
+   * TTOken Code: read the issues board of the Session's repository: its open and recently closed issues with the pull
+   * requests that close them, from the first remote, in recognition order, that names a repository a provider serves.
+   * @param session - Session whose checkout names the repository.
+   * @param signal - request cancellation.
+   * @returns the repository with its issues.
+   * @throws \`forgePanel/not-a-checkout\` outside a checkout; \`forgePanel/issues-unavailable\` when no remote names a served
+   * repository; \`forgePanel/issues-failed\` when the code host did not provide the issues.
+   */
+  @Remote
+  async issues(session: Session, signal: AbortSignal): Promise<ForgeIssueBoard> {
+    signal.throwIfAborted()
+    const inspection = await this.checkoutOf(session, signal)
+    for (const remote of remoteOrder(inspection.upstream, inspection.remotes)) {
+      for (const url of remote.urls) {
+        const repository = this.home.forge.repositoryFromRemote(url)
+        if (repository === undefined) continue
+        const list = await this.home.forge.listIssues(repository, signal)
+        if ('code' in list) throw new RemoteError('forgePanel/issues-failed', list.message, {})
+        return { ...list, repository: \`\${repository.owner}/\${repository.name}\`, host: repository.host }
+      }
+    }
+    throw new RemoteError('forgePanel/issues-unavailable', 'No remote of the checkout names a repository on a supported code host', {})
+  }
+`,
+    ],
+  ],
+})
+
+// 24f. Papan issue GitHub (Client). Tab tampilan percakapan "Issues" di samping
+//      Chat: empat kolom gelap (To do, Agent working, In review, Done), panel
+//      detail yang membuka sesi agen baru di cabang sendiri, dan sesi perbaikan
+//      untuk pull request yang cek-nya gagal.
+for (const file of ['locales.ts', 'agents.ts', 'IssuesBoard.tsx', 'IssuesBoard.module.css', 'install.ts']) {
+  writeGenerated(`papan issue (${file})`, `packages/experimental/client-ui-forge/src/client/ttoken-issues/${file}`, forgePart(`client/${file}`))
+}
+editFile({
+  name: 'papan issue (pemasangan)',
+  path: 'packages/experimental/client-ui-forge/src/client/mount.ts',
+  pairs: [
+    [
+      `import { WorktreeToggle, type WorktreeToggleInjected } from './WorktreeToggle.tsx'\n`,
+      `import { WorktreeToggle, type WorktreeToggleInjected } from './WorktreeToggle.tsx'\nimport { installTtokenIssues } from './ttoken-issues/install.ts'\n`,
+    ],
+    [
+      `    name: 'plugins.row.config', key: WORKTREE_ROW_KEY, locale: NS, inject: () => worktreeSettings.inject(),\n  }, WorktreeSettings))\n}\n`,
+      `    name: 'plugins.row.config', key: WORKTREE_ROW_KEY, locale: NS, inject: () => worktreeSettings.inject(),\n  }, WorktreeSettings))\n  installTtokenIssues(ctx, openLink)\n}\n`,
+    ],
+  ],
 })
 
 // 25. Diff: baris yang ditambah blok hijau, yang dihapus blok merah. Teks kode

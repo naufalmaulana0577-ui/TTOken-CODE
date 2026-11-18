@@ -44,7 +44,7 @@ import { ChangeRequestStates, changeRequestStatesDomain } from './states.ts'
 import { Reader, ViewerLists } from './viewer-lists.ts'
 import type { PanelConfig } from './panel.ts'
 import type {
-  Config, ForgeBaseBranches, ForgeChangeRequestDiff, ForgeChangeRequestStatesFrame, ForgeCommitRange, ForgeDiffFile,
+  Config, ForgeBaseBranches, ForgeIssueBoard, ForgeChangeRequestDiff, ForgeChangeRequestStatesFrame, ForgeCommitRange, ForgeDiffFile,
   ForgeReviewChangeRequest, ForgeReviewCountFrame, ForgeReviewFrame,
   ForgeExtensionState, ForgeLens, ForgeLensFrame, ForgeLensRequest, ForgeLocalCommits, ForgeLocalDiff, ForgeLocalScope,
   ForgeMissingWorktree, ForgePanelState, ForgeSessionWorktree, ForgeWorktreeBases, ForgeWorktreeState,
@@ -696,6 +696,31 @@ export class ForgePanelController extends TypertRemoteService {
       throw new RemoteError('forgePanel/unrecognized-url', 'No code host provider recognizes the change request URL', {})
     }
     this.home.forgeSession.track(session, url)
+  }
+
+  /**
+   * TTOken Code: read the issues board of the Session's repository: its open and recently closed issues with the pull
+   * requests that close them, from the first remote, in recognition order, that names a repository a provider serves.
+   * @param session - Session whose checkout names the repository.
+   * @param signal - request cancellation.
+   * @returns the repository with its issues.
+   * @throws `forgePanel/not-a-checkout` outside a checkout; `forgePanel/issues-unavailable` when no remote names a served
+   * repository; `forgePanel/issues-failed` when the code host did not provide the issues.
+   */
+  @Remote
+  async issues(session: Session, signal: AbortSignal): Promise<ForgeIssueBoard> {
+    signal.throwIfAborted()
+    const inspection = await this.checkoutOf(session, signal)
+    for (const remote of remoteOrder(inspection.upstream, inspection.remotes)) {
+      for (const url of remote.urls) {
+        const repository = this.home.forge.repositoryFromRemote(url)
+        if (repository === undefined) continue
+        const list = await this.home.forge.listIssues(repository, signal)
+        if ('code' in list) throw new RemoteError('forgePanel/issues-failed', list.message, {})
+        return { ...list, repository: `${repository.owner}/${repository.name}`, host: repository.host }
+      }
+    }
+    throw new RemoteError('forgePanel/issues-unavailable', 'No remote of the checkout names a repository on a supported code host', {})
   }
 
   /**

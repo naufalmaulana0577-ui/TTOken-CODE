@@ -13,6 +13,7 @@ import type {
   ForgeReviewChange, ForgeReviewerCandidate, ForgeReviewersRequest, ForgeReviewRequest, ForgeReviewResult, ForgeReviewWrite,
   ForgeReviewWriteResult,
   ForgeViewedFiles, ForgeViewedRequest, ForgeViewerFilter, ForgeViewerList, ForgeViewerQuery, ForgeViewerSource, MergeRequest,
+  ForgeIssueList,
 } from './types.ts'
 
 export { changeRequestKey } from './keys.ts'
@@ -529,6 +530,18 @@ export class ForgeService extends Service {
     return await this.invoke(this.registration(ref.repository.forge), signal,
       (provider, operation) => provider.readDescription?.(ref, operation)
         ?? Promise.resolve({ code: 'unsupported', message: 'This provider does not read descriptions' } as const))
+  }
+
+  /**
+   * TTOken Code: read the open and recently closed issues of a repository.
+   * @param repository - repository served by a registered provider.
+   * @param signal - request cancellation.
+   * @returns the issues, or why the host did not provide them; `unsupported` when the provider reads no issues.
+   */
+  async listIssues(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure> {
+    return await this.invoke(this.registration(repository.forge), signal,
+      (provider, operation) => provider.listIssues?.(repository, operation)
+        ?? Promise.resolve({ code: 'unsupported', message: 'This provider does not read issues' } as const))
   }
 
   /**

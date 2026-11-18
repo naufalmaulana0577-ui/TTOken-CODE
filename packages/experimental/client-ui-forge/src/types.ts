@@ -4,9 +4,17 @@ import type {} from '@deepseek-ai/dsh-typert-protocol'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type {
   ChangeRequestRef, ChangeRequestSnapshot, ChangeRequestSummary, ChangeRequestUpdate, ForgeCommit, ForgeDescription, ForgeFailure,
-  ForgeReadiness, ForgeRepository, ForgeViewerFilter,
+  ForgeReadiness, ForgeRepository, ForgeViewerFilter, ForgeIssueList,
 } from '@deepseek-ai/dsh-experimental-forge/types'
 import type { SessionChangeRequest } from '@deepseek-ai/dsh-experimental-forge-session/types'
+
+/** TTOken Code: the issues board of a Session's repository. */
+export interface ForgeIssueBoard extends ForgeIssueList {
+  /** Repository as `owner/name`. */
+  readonly repository: string
+  /** Code host of the repository, such as `github.com`. */
+  readonly host: string
+}
 
 /** Git facts for the checkout that contains the Session's current directory. */
 export interface ForgeCheckout {
@@ -649,6 +657,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** No registered provider serves the change request URL. */
     'forgePanel/unrecognized-url': Record<string, never>
+    /** TTOken Code: no remote of the checkout names a repository a code host provider serves. */
+    'forgePanel/issues-unavailable': Record<string, never>
+    /** TTOken Code: the code host did not provide the repository's issues; the message says why. */
+    'forgePanel/issues-failed': Record<string, never>
     /** A turn of the Session has started, or its worktree was created, so its worktree request can no longer change. */
     'forgePanel/session-started': Record<string, never>
     /** No worktree service is mounted. */

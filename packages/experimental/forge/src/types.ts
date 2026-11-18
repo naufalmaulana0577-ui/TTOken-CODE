@@ -194,6 +194,58 @@ export interface ForgeFailure {
   readonly message: string
 }
 
+/** TTOken Code: one pull request that closes an issue when it merges. */
+export interface ForgeIssuePullRequest {
+  /** Pull request number in the issue's repository. */
+  readonly number: number
+  /** Web URL of the pull request. */
+  readonly url: string
+  /** Lifecycle state. */
+  readonly state: 'open' | 'closed' | 'merged'
+  /** Whether the pull request is a draft. */
+  readonly draft: boolean
+  /** Combined state of the checks on the pull request's head commit; null when it reports none. */
+  readonly checks: 'success' | 'failure' | 'pending' | null
+}
+
+/** TTOken Code: one issue of a repository as the issues board shows it. */
+export interface ForgeIssue {
+  /** Issue number. */
+  readonly number: number
+  /** Issue title. */
+  readonly title: string
+  /** Web URL of the issue. */
+  readonly url: string
+  /** Lifecycle state. */
+  readonly state: 'open' | 'closed'
+  /** Markdown body, cut at the provider's body limit. */
+  readonly body: string
+  /** Author login; null for a deleted account. */
+  readonly author: string | null
+  /** Logins of the first assignees. */
+  readonly assignees: readonly string[]
+  /** Labels with their hex colors, without `#`. */
+  readonly labels: readonly { readonly name: string; readonly color: string }[]
+  /** Number of comments. */
+  readonly comments: number
+  /** Last update time, ISO 8601. */
+  readonly updatedAt: string
+  /** Pull requests that close the issue when they merge, as the host links them. */
+  readonly pullRequests: readonly ForgeIssuePullRequest[]
+}
+
+/** TTOken Code: the issues of one repository for the issues board. */
+export interface ForgeIssueList {
+  /** Open issues, most recently updated first. */
+  readonly open: readonly ForgeIssue[]
+  /** Recently closed issues, most recently updated first. */
+  readonly closed: readonly ForgeIssue[]
+  /** Number of open issues in the repository, listed or not. */
+  readonly openTotal: number
+  /** Login of the account the provider reads as; null when the host does not say. */
+  readonly viewer: string | null
+}
+
 /** Latest polling result delivered to watchers of one change request. */
 export type ChangeRequestUpdate = {
   /** Canonical identity of the watched change request. */
@@ -657,6 +709,8 @@ export interface ForgeProvider {
   listForViewer?(query: ForgeViewerQuery, signal: AbortSignal): Promise<ForgeViewerList | ForgeFailure>
   /** Count the change requests in every list of {@link ForgeViewerCapability.filters} on one of its hosts. */
   countForViewer?(host: string, signal: AbortSignal): Promise<ReadonlyMap<ForgeViewerFilter, number> | ForgeFailure>
+  /** TTOken Code: read the open and recently closed issues of a repository. Omission declares that this provider reads no issues. */
+  listIssues?(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure>
   /** Read the description and labels of a change request. Omission declares that this provider reads no descriptions. */
   readDescription?(ref: ChangeRequestRef, signal: AbortSignal): Promise<ChangeRequestDescription | ForgeFailure>
   /** Publish a comment or completed review. Omission declares that this provider cannot write reviews. */

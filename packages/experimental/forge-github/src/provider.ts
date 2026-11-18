@@ -6,6 +6,7 @@ import type {
   ForgeCommitList, ForgeFailure, ForgeViewerCapability, ForgeViewerFilter, ForgeViewerList, ForgeViewerQuery,
   ForgeProvider, ForgeReadiness, ForgeRepository, ForgeRerunRequest, ForgeReviewData, ForgeReviewerCandidate, ForgeReviewersRequest,
   ForgeReviewRequest, ForgeReviewResult, ForgeReviewWrite, ForgeReviewWriteResult, ForgeViewedFiles, ForgeViewedRequest, MergeRequest,
+  ForgeIssueList,
 } from '@deepseek-ai/dsh-experimental-forge'
 import { listCommits } from './commits.ts'
 import type { GraphqlReader } from './commits.ts'
@@ -25,6 +26,7 @@ import { gitHubReviewerCandidates, requestGitHubReviews, updateGitHubBranch } fr
 import { writeGitHubReview } from './review-writes.ts'
 import { readReviewThreads } from './threads.ts'
 import { readDescription } from './description.ts'
+import { readIssues } from './issues.ts'
 import { countViewerLists, readViewerList, VIEWER_FILTERS } from './viewer.ts'
 
 const AUTHENTICATION = /gh auth login|authentication|bad credentials|HTTP 401/i
@@ -142,6 +144,16 @@ export class GitHubProvider implements ForgeProvider {
     const failure = this.hostFailure(ref.repository.host)
     if (failure !== undefined) return failure
     return await readDescription(this.graphql, ref, signal)
+  }
+
+  /**
+   * TTOken Code: read the open and recently closed issues of a repository through GraphQL.
+   * @see readIssues
+   */
+  async listIssues(repository: ForgeRepository, signal: AbortSignal): Promise<ForgeIssueList | ForgeFailure> {
+    const failure = this.hostFailure(repository.host)
+    if (failure !== undefined) return failure
+    return await readIssues(this.graphql, repository, signal)
   }
 
   repositoryFromRemote(url: string): ForgeRepository | undefined {

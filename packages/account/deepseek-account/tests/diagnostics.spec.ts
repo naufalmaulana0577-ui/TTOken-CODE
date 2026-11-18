@@ -4,7 +4,7 @@ import type { AccountNotificationId } from '@deepseek-ai/dsh-deepseek-account/ty
 import { readAccountDetail } from '../src/details.ts'
 import { readNotifications } from '../src/notifications.ts'
 
-it.each(['/dsh/authorize', '/dsh/authorized'])('maps %s to the configured development origin and preserves query bytes', (path) => {
+it.each(['/code/authorize', '/code/authorized'])('maps %s to the configured development origin and preserves query bytes', (path) => {
   const origin = 'http://localhost:8081'
   const query = '?authorize_id=fixture&value=a%2Fb&value=two+words&empty='
   const url = `https://platform.deepseek.com${path}${query}`
@@ -31,7 +31,7 @@ it('reports business failure codes without credentials or response messages', as
       { Cookie: 'cookie-secret' })).rejects.toThrow('account: protocol')
     expect(output).toHaveBeenCalledOnce()
     const logged = JSON.stringify(output.mock.calls)
-    expect(logged).toContain('/auth-api/v0/dsh/auth_init')
+    expect(logged).toContain('/api/v1/code/desktop/auth_init')
     expect(logged).toContain('40123')
     expect(logged).toContain('200')
     for (const secret of ['response-secret', 'private-message', 'request-secret', 'cookie-secret']) {
@@ -83,13 +83,13 @@ it('reports browser URL rejection rules without exposing the destination', () =>
   const output = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   try {
     expect(() => browserUrl('https://private.example/wrong?code=private-code',
-      'https://platform.deepseek.com', '/dsh/authorize')).toThrow('account: protocol')
+      'https://platform.deepseek.com', '/code/authorize')).toThrow('account: protocol')
     expect(output).toHaveBeenCalledWith('[deepseek-account] browser URL rejected', {
-      path: '/dsh/authorize', originMismatch: true, pathMismatch: true,
+      path: '/code/authorize', originMismatch: true, pathMismatch: true,
       hasCredentials: false, hasFragment: false,
     })
     expect(() => browserUrl('private-invalid-url', 'https://platform.deepseek.com',
-      '/dsh/authorize')).toThrow('account: protocol')
+      '/code/authorize')).toThrow('account: protocol')
     expect(JSON.stringify(output.mock.calls)).not.toContain('private-')
   } finally {
     output.mockRestore()
@@ -131,7 +131,7 @@ it('keeps successful authorization, account, bonus and logout requests silent', 
     for (const method of ['auth_init', 'auth_exchange', 'auth_cancel']) {
       await requestPlatform(origin, method, {}, signal, {})
     }
-    for (const path of ['/auth-api/v0/users/current', '/api/v0/users/get_user_summary'] as const) {
+    for (const path of ['/api/v1/code/desktop/me', '/api/v1/code/desktop/wallet'] as const) {
       await requestAccount(origin, path, 'private-token', signal, {})
     }
     await requestNotifications(origin, 'private-token', signal, {})
@@ -160,10 +160,10 @@ it.each([
   const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
   const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(payload, { status }))
   try {
-    await expect(requestAccount('https://platform.deepseek.com', '/auth-api/v0/users/current',
+    await expect(requestAccount('https://platform.deepseek.com', '/api/v1/code/desktop/me',
       'private-token', new AbortController().signal, {})).rejects.toThrow('account: expired')
     expect(output).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      path: '/auth-api/v0/users/current', status,
+      path: '/api/v1/code/desktop/me', status,
     }))
     expect(JSON.stringify(output.mock.calls)).not.toContain('private-')
     expect(info).not.toHaveBeenCalled()
@@ -219,7 +219,7 @@ it.each([
         return new Response('private-response', { status: stage === 'unauthorized' ? 401 : 503 })
       })
     }
-    const request = requestAccount('https://platform.deepseek.com', '/auth-api/v0/users/current',
+    const request = requestAccount('https://platform.deepseek.com', '/api/v1/code/desktop/me',
       'private-token', cancellation.signal, {})
     if (stage === 'body') {
       await reading.promise

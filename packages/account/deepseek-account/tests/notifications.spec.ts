@@ -76,7 +76,7 @@ async function fixture() {
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     expect(req.headers.authorization).toBeUndefined()
     const body = await requestBody(req)
-    requests.push({ method: req.method, url: req.url, token: req.headers['x-dsh-auth-token'] as string | undefined,
+    requests.push({ method: req.method, url: req.url, token: req.headers['x-ttoken-code-token'] as string | undefined,
       locale: req.headers['x-client-locale'] as string | undefined,
       bundleId: req.headers['x-client-bundle-id'] as string | undefined,
       platform: req.headers['x-client-platform'] as string | undefined,
@@ -84,26 +84,26 @@ async function fixture() {
       timezoneOffset: req.headers['x-client-timezone-offset'] as string | undefined,
       contentType: req.headers['content-type'], body: body === '' ? undefined : body })
     res.setHeader('content-type', 'application/json')
-    if (req.url === '/auth-api/v0/users/current') {
+    if (req.url === '/api/v1/code/desktop/me') {
       await beforeProfileResponse?.()
       res.writeHead(profileStatus).end(JSON.stringify({ code: profileStatus === 200 ? 0 : 1, data: { biz_code: profileBizCode,
         biz_data: { id: profileId, email: 't***@example.invalid', id_profile: { name: 'Test', picture: null } } } }))
       return
     }
-    if (req.url === '/api/v0/users/notifications/list') {
+    if (req.url === '/api/v1/code/desktop/notifications/list') {
       await beforeListResponse?.()
       res.writeHead(bonusStatus).end(JSON.stringify({ code: bonusStatus === 200 ? 0 : 1,
         data: { biz_code: bonusBizCode, biz_data: { next_poll_after: nextPollAfter, notifications: bonuses } } }))
       return
     }
-    if (req.url?.startsWith('/api/v0/users/notifications/content?')) {
+    if (req.url?.startsWith('/api/v1/code/desktop/notifications/content?')) {
       await beforeContentResponse?.()
       res.writeHead(contentStatus).end(JSON.stringify({ code: contentStatus === 200 ? 0 : 1,
         data: { biz_code: contentBizCode, biz_data: content } }))
       return
     }
     // The exact path is the assertion: a query parameter would fall through to the 404 below.
-    if (req.url === '/api/v0/users/notifications/events') {
+    if (req.url === '/api/v1/code/desktop/notifications/events') {
       await beforeEventResponse?.()
       res.writeHead(ackStatus).end(JSON.stringify(ackStatus === 200
         ? { code: 0, msg: '', data: { biz_code: ackBizCode, biz_msg: ackBizCode === 0 ? '' : 'NOTIFICATION_NOT_FOUND', biz_data: { acked } } }
@@ -167,8 +167,8 @@ it('sends client identity headers on notification requests without a profile pre
   expect(f.requests.map(request => [
     request.url, request.bundleId, request.platform, request.version, request.locale, request.timezoneOffset,
   ])).toEqual([
-    ['/api/v0/users/notifications/list', '', 'web', '3.0.0', 'zh_CN', '-18000'],
-    ['/api/v0/users/notifications/events', '', 'web', '3.0.0', 'zh_CN', '-18000'],
+    ['/api/v1/code/desktop/notifications/list', '', 'web', '3.0.0', 'zh_CN', '-18000'],
+    ['/api/v1/code/desktop/notifications/events', '', 'web', '3.0.0', 'zh_CN', '-18000'],
   ])
 })
 
@@ -178,7 +178,7 @@ it('does not query the account identity across repeated notification reads and r
   await f.account.getNotifications(clientMetadata('en'))
   await f.account.getNotifications(clientMetadata('en'))
   await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))
-  expect(f.requests.filter(request => request.url === '/auth-api/v0/users/current')).toHaveLength(0)
+  expect(f.requests.filter(request => request.url === '/api/v1/code/desktop/me')).toHaveLength(0)
 })
 
 it('does not reuse a cached identity from another grant', async () => {
@@ -188,8 +188,8 @@ it('does not reuse a cached identity from another grant', async () => {
   await f.grant('rotated-token')
   await f.account.getNotifications(clientMetadata('en'))
   expect(f.requests.map(request => [request.url, request.token])).toEqual([
-    ['/auth-api/v0/users/current', 'test-account-token'],
-    ['/api/v0/users/notifications/list', 'rotated-token'],
+    ['/api/v1/code/desktop/me', 'test-account-token'],
+    ['/api/v1/code/desktop/notifications/list', 'rotated-token'],
   ])
 })
 
@@ -198,7 +198,7 @@ it('leaves profile identity unknown when only notifications were queried', async
   await f.grant('test-account-token')
   await f.account.getNotifications(clientMetadata())
   expect(await f.account.getPlatformSession()).toMatchObject({ userId: null, token: 'test-account-token' })
-  expect(f.requests.map(request => request.url)).toEqual(['/api/v0/users/notifications/list'])
+  expect(f.requests.map(request => request.url)).toEqual(['/api/v1/code/desktop/notifications/list'])
 })
 
 it.each([undefined, null, 0, -1, '300', 2_147_483.648])('rejects an invalid next_poll_after value: %s', async (delay) => {
@@ -226,7 +226,7 @@ it('reads generic notifications in server order with account and client headers'
       displayUntil: null, title: 'Product news', body: 'New features are available.', actions: [] },
   ] })
   expect(f.requests).toEqual([
-    { method: 'GET', url: '/api/v0/users/notifications/list', token: 'test-account-token', locale: 'zh_CN',
+    { method: 'GET', url: '/api/v1/code/desktop/notifications/list', token: 'test-account-token', locale: 'zh_CN',
       bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '28800' },
   ])
 })
@@ -253,11 +253,11 @@ it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('prese
   expect((await f.account.getNotificationContent(id, clientMetadata()))?.id).toBe(id)
   expect(await f.account.reportNotificationEvent(id, 'dismissed', clientMetadata())).toBe(true)
   expect([f.requests[0]?.url, f.requests[2]?.url]).toEqual([
-    '/api/v0/users/notifications/list',
-    '/api/v0/users/notifications/events',
+    '/api/v1/code/desktop/notifications/list',
+    '/api/v1/code/desktop/notifications/events',
   ])
   const contentUrl = new URL(f.requests[1]!.url!, 'https://fixture.invalid')
-  expect(contentUrl.pathname).toBe('/api/v0/users/notifications/content')
+  expect(contentUrl.pathname).toBe('/api/v1/code/desktop/notifications/content')
   expect([...contentUrl.searchParams]).toEqual([['id', id]])
   expect(contentUrl.hash).toBe('')
   expect(f.requests.at(-1)?.body).toBe(JSON.stringify({ notification_id: id, type: 'dismissed' }))
@@ -285,7 +285,7 @@ it.each([
   await f.account.getNotifications(clientMetadata(locale))
   expect(f.requests.map(request => request.locale)).toEqual([wireLocale])
   expect(f.requests.map(request => request.url)).toEqual([
-    '/api/v0/users/notifications/list',
+    '/api/v1/code/desktop/notifications/list',
   ])
 })
 
@@ -402,7 +402,7 @@ it.each(['displayed', 'cta_clicked', 'dismissed'] as const)('reports %s with the
   await f.grant('test-account-token')
   expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, event, clientMetadata('zh-CN'))).toBe(true)
   expect(f.requests).toEqual([
-    { method: 'POST', url: '/api/v0/users/notifications/events', token: 'test-account-token', locale: 'zh_CN',
+    { method: 'POST', url: '/api/v1/code/desktop/notifications/events', token: 'test-account-token', locale: 'zh_CN',
       bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '28800',
       contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: event }) },
   ])
@@ -472,7 +472,7 @@ it('rejects the supplied NOTIFICATION_NOT_FOUND envelope as a business failure',
   await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')))
     .rejects.toThrow('account: protocol')
   expect(f.requests[0]).toMatchObject({
-    method: 'POST', url: '/api/v0/users/notifications/events', locale: 'en_US',
+    method: 'POST', url: '/api/v1/code/desktop/notifications/events', locale: 'en_US',
     contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: 'displayed' }),
   })
 })
@@ -492,7 +492,7 @@ it('accepts an acked false response without treating it as a retryable failure',
   await f.grant('test-account-token')
   f.acknowledged(false)
   expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'dismissed', clientMetadata())).toBe(true)
-  expect(f.requests.map(request => request.url)).toEqual(['/api/v0/users/notifications/events'])
+  expect(f.requests.map(request => request.url)).toEqual(['/api/v1/code/desktop/notifications/events'])
   expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
 })
 
@@ -509,7 +509,7 @@ it('discards a list response invalidated by a credential change', async () => {
   f.onList(async () => { await f.grant('rotated-token') })
   expect(await f.account.getNotifications(clientMetadata())).toBeNull()
   expect(f.requests.map(request => [request.url, request.token])).toEqual([
-    ['/api/v0/users/notifications/list', 'test-account-token'],
+    ['/api/v1/code/desktop/notifications/list', 'test-account-token'],
   ])
 })
 
@@ -521,7 +521,7 @@ it('queries notifications and reports events while profile data is unavailable',
   expect(await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())).toMatchObject({ id: ORDER })
   expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).toBe(true)
   expect(f.requests.map(request => request.url)).toEqual([
-    '/api/v0/users/notifications/list', `/api/v0/users/notifications/content?id=${ORDER}`, '/api/v0/users/notifications/events',
+    '/api/v1/code/desktop/notifications/list', `/api/v1/code/desktop/notifications/content?id=${ORDER}`, '/api/v1/code/desktop/notifications/events',
   ])
 })
 
@@ -540,7 +540,7 @@ it('queries notifications independently of a profile without a user ID', async (
   expect(await f.account.getProfile(clientMetadata())).toMatchObject({ status: 'ready' })
   f.failProfile()
   await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).resolves.toBe(true)
-  expect(f.requests.at(-1)?.url).toBe('/api/v0/users/notifications/events')
+  expect(f.requests.at(-1)?.url).toBe('/api/v1/code/desktop/notifications/events')
 })
 
 it('reads localized content of a consumed notification without listing or acknowledging it', async () => {
@@ -554,7 +554,7 @@ it('reads localized content of a consumed notification without listing or acknow
   expect(content).toMatchObject({ id: ORDER, title: '产品公告', body: '新功能已上线',
     actions: [{ label: '知道了', style: 'secondary', target: { type: 'dismiss' } }] })
   expect(f.requests.map(request => request.url)).toEqual([
-    `/api/v0/users/notifications/content?id=${ORDER}`,
+    `/api/v1/code/desktop/notifications/content?id=${ORDER}`,
   ])
   expect(f.requests.at(-1)).toMatchObject({ method: 'GET', token: 'test-account-token', locale: 'zh_CN' })
 })

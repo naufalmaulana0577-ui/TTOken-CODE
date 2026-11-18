@@ -916,7 +916,8 @@ editFile({
 })
 replaceTokens({
   name: 'akun-rute',
-  scopes: ['packages/account/deepseek-account/src', 'apps/desktop/src/host-process.ts'],
+  // Test ikut diganti: pemeriksaan tipe agregat saat build membaca literal rute di test.
+  scopes: ['packages/account/deepseek-account/src', 'packages/account/deepseek-account/tests', 'apps/desktop/src/host-process.ts'],
   pairs: [
     ['/auth-api/v0/dsh/', '/api/v1/code/desktop/'],
     ['/auth-api/v0/users/current', '/api/v1/code/desktop/me'],

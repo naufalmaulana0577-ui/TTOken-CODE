@@ -4,7 +4,7 @@ import { AccountUnauthorizedError, requestAccount, requestPlatform } from '../sr
 it.each([null, undefined])('recognizes invalid authorization without requiring business data (%s)', async (data) => {
   const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ code: 40003, data })))
   try {
-    await expect(requestAccount('https://platform.deepseek.com', '/auth-api/v0/users/current',
+    await expect(requestAccount('https://platform.deepseek.com', '/api/v1/code/desktop/me',
       'fixture-token', new AbortController().signal, {})).rejects.toBeInstanceOf(AccountUnauthorizedError)
   } finally { fetcher.mockRestore() }
 })

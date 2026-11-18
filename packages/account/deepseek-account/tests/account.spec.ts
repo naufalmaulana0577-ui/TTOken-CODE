@@ -86,31 +86,31 @@ async function fixture(
       version: req.headers['x-client-version'] as string | undefined,
       locale: req.headers['x-client-locale'] as string | undefined,
       timezoneOffset: req.headers['x-client-timezone-offset'] as string | undefined,
-      path: req.url, cookie: req.headers.cookie, authorization: req.headers['x-dsh-auth-token'] as string | undefined })
+      path: req.url, cookie: req.headers.cookie, authorization: req.headers['x-ttoken-code-token'] as string | undefined })
     if (redirect) { res.writeHead(302, { location: `${origin}/redirect-target` }).end(); return }
-    if (req.url === '/auth-api/v0/users/logout') {
+    if (req.url === '/api/v1/code/desktop/logout') {
       logoutCount++
-      logoutHeaders.push(req.headers['x-dsh-auth-token'] as string | undefined)
+      logoutHeaders.push(req.headers['x-ttoken-code-token'] as string | undefined)
       if (logoutHold) await release.promise
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ code: logoutFailed ? 50000 : 0, data: { biz_code: 0, biz_data: null } }))
       return
     }
     if (req.method === 'GET') {
-      detailRequests.push({ path: req.url!, authorization: req.headers['x-dsh-auth-token'] as string | undefined })
+      detailRequests.push({ path: req.url!, authorization: req.headers['x-ttoken-code-token'] as string | undefined })
       const status = detailStatus
       detailsStarted.resolve(undefined)
-      if (detailsHold || (balanceHold && req.url === '/api/v0/users/get_user_summary')) await release.promise
+      if (detailsHold || (balanceHold && req.url === '/api/v1/code/desktop/wallet')) await release.promise
       if (status !== 200) { res.writeHead(status).end(); return }
       if (detailCode !== 0) { res.end(JSON.stringify({ code: detailCode, data: null })); return }
-      const value = req.url === '/auth-api/v0/users/current'
+      const value = req.url === '/api/v1/code/desktop/me'
         ? { id: 'test-user', token: 'never-copy-response-token', ...contact,
           id_profile: { name: 'Test Account', picture: null } }
         : { normal_wallets: normalWallets, bonus_wallets: bonusWallets }
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ code: 0, data: {
-        biz_code: (profileFailed && req.url === '/auth-api/v0/users/current')
-          || (summaryFailed && req.url === '/api/v0/users/get_user_summary') ? 17 : 0, biz_data: value,
+        biz_code: (profileFailed && req.url === '/api/v1/code/desktop/me')
+          || (summaryFailed && req.url === '/api/v1/code/desktop/wallet') ? 17 : 0, biz_data: value,
       } }))
       return
     }
@@ -370,7 +370,7 @@ it('allows real account credentials only on the exact official HTTPS origin', as
     kind: 'grant', payload: { version: 1, issuer: 'https://platform.deepseek.com', token: 'test-account-token' },
   }))
   expect((await f.account.resolveRequestCredential('https://api.deepseek.com/v1'))?.headers)
-    .toEqual({ 'x-dsh-auth-token': 'test-account-token' })
+    .toEqual({ 'x-ttoken-code-token': 'test-account-token' })
   for (const url of ['http://api.deepseek.com', 'https://api.deepseek.com.evil.test', 'https://api.deepseek.com:8443', 'https://user@api.deepseek.com']) {
     expect(await f.account.resolveRequestCredential(url)).toBeUndefined()
   }
@@ -386,7 +386,7 @@ it('releases the request credential for an allowed destination and removes the r
   const endpoint = 'http://inference.example.test:8094/v1/tools/search'
   expect(await f.account.resolveRequestCredential('https://api.deepseek.com/v1/tools/search')).toBeUndefined()
   const credential = await f.account.resolveRequestCredential(endpoint)
-  expect(credential).toMatchObject({ headers: { 'x-dsh-auth-token': 'test-account-token' } })
+  expect(credential).toMatchObject({ headers: { 'x-ttoken-code-token': 'test-account-token' } })
   await credential!.reject()
   expect((await f.account.getState()).status).toBe('signed-out')
   expect(await f.account.resolveRequestCredential(endpoint)).toBeUndefined()
@@ -434,8 +434,8 @@ it('restricts platform destinations to the configured origin and route', () => {
   expect(() => platformOrigin('http://localhost:8081', false, 'platformOrigin')).toThrow()
   expect(platformOrigin('http://localhost:8081', true, 'platformOrigin')).toBe('http://localhost:8081')
   expect(() => platformOrigin('http://example.com', true, 'platformOrigin')).toThrow()
-  expect(() => browserUrl('https://evil.test/dsh/authorized', 'https://platform.deepseek.com', '/dsh/authorized')).toThrow()
-  expect(() => browserUrl('https://platform.deepseek.com/other', 'https://platform.deepseek.com', '/dsh/authorized')).toThrow()
+  expect(() => browserUrl('https://evil.test/dsh/authorized', 'https://platform.deepseek.com', '/code/authorized')).toThrow()
+  expect(() => browserUrl('https://platform.deepseek.com/other', 'https://platform.deepseek.com', '/code/authorized')).toThrow()
 })
 
 it('maps both returned browser pages to the development origin across the login flow', async () => {
@@ -473,7 +473,7 @@ it('preserves Platform business client_type in the completion URL', async () => 
   expect(response.headers.get('location')).toBe(`${f.origin}/dsh/authorized?client_type=DSH&login_source=web`)
 })
 
-it.each([undefined, 'https://other.example/dsh/authorized', '/dsh/authorized'])('rejects an invalid exchange completion URL %s before storing a token', async (authorizedUrl) => {
+it.each([undefined, 'https://other.example/dsh/authorized', '/code/authorized'])('rejects an invalid exchange completion URL %s before storing a token', async (authorizedUrl) => {
   const f = await fixture()
   f.exchangeResponse({ authorized_url: authorizedUrl })
   await f.account.startSignIn(clientMetadata(), f.callbackOrigin, 'desktop')
@@ -538,8 +538,8 @@ it('queries Platform Web endpoints with the stored grant and projects only maske
     balance: { status: 'ready', bonusWallets: [{ currency: 'CNY', balance: '10.00' }], value: [{ currency: 'CNY', balance: '123.45' }, { currency: 'USD', balance: '6.78' }] },
   })
   expect(f.detailRequests).toEqual(expect.arrayContaining([
-    { path: '/auth-api/v0/users/current', authorization: 'test-platform-grant' },
-    { path: '/api/v0/users/get_user_summary', authorization: 'test-platform-grant' },
+    { path: '/api/v1/code/desktop/me', authorization: 'test-platform-grant' },
+    { path: '/api/v1/code/desktop/wallet', authorization: 'test-platform-grant' },
   ]))
   expect(await f.ctx.credentials.readRecord(credentialKey('deepseek-account-platform', 'default'))).toMatchObject({
     payload: { token: 'test-platform-grant' },
@@ -610,7 +610,7 @@ it('releases a withdrawn credential when sign-out completes while its token is b
     await f.account.signOut(clientMetadata())
     release.resolve(undefined)
     // The token was read before the sign-out removed it, so the credential must not authenticate a request.
-    expect(await pending).toMatchObject({ headers: { 'x-dsh-auth-token': 'test-platform-grant' }, revoked: { aborted: true } })
+    expect(await pending).toMatchObject({ headers: { 'x-ttoken-code-token': 'test-platform-grant' }, revoked: { aborted: true } })
   } finally { read.mockRestore() }
 })
 
@@ -760,11 +760,11 @@ it('adds private deployment cookies to every Platform request without exposing t
   const headers = f.receivedHeaders
   const paths = headers.map(item => item.path)
   // The profile and wallet queries are independent requests, so their arrival order is scheduler-dependent.
-  expect(paths.slice(0, 2)).toEqual(['/auth-api/v0/dsh/auth_init', '/auth-api/v0/dsh/auth_exchange'])
-  expect(paths.slice(2, -1).sort()).toEqual(['/api/v0/users/get_user_summary', '/auth-api/v0/users/current'])
-  expect(paths.at(-1)).toBe('/auth-api/v0/users/logout')
+  expect(paths.slice(0, 2)).toEqual(['/api/v1/code/desktop/auth_init', '/api/v1/code/desktop/auth_exchange'])
+  expect(paths.slice(2, -1).sort()).toEqual(['/api/v1/code/desktop/wallet', '/api/v1/code/desktop/me'])
+  expect(paths.at(-1)).toBe('/api/v1/code/desktop/logout')
   expect(headers.every(item => item.cookie === 'test_gate=synthetic')).toBe(true)
-  const grantedPaths = new Set(['/auth-api/v0/users/current', '/api/v0/users/get_user_summary', '/auth-api/v0/users/logout'])
+  const grantedPaths = new Set(['/api/v1/code/desktop/me', '/api/v1/code/desktop/wallet', '/api/v1/code/desktop/logout'])
   expect(headers.filter(item => grantedPaths.has(item.path ?? '')).every(item => item.authorization === 'dsh_mock_test')).toBe(true)
   expect(headers.filter(item => !grantedPaths.has(item.path ?? '')).every(item => item.authorization === undefined)).toBe(true)
 })
@@ -785,7 +785,7 @@ it('does not forward deployment cookies through a Platform redirect', async () =
   f.redirect()
   await f.account.startSignIn(clientMetadata(), f.callbackOrigin, 'desktop')
   await f.wait('failed')
-  expect(f.receivedHeaders.map(item => item.path)).toEqual(['/auth-api/v0/dsh/auth_init'])
+  expect(f.receivedHeaders.map(item => item.path)).toEqual(['/api/v1/code/desktop/auth_init'])
 })
 
 it('closes the failed Web authorization tab without redirecting and keeps the shared HTTP server alive', async () => {
@@ -1007,7 +1007,7 @@ it('overlays account cookies without changing authorization or logout routing', 
   await f.account.signOut(clientMetadata())
   await expect.poll(f.logoutCount).toBe(1)
   for (const row of f.receivedHeaders) {
-    const detail = ['/auth-api/v0/users/current', '/api/v0/users/get_user_summary'].includes(row.path ?? '')
+    const detail = ['/api/v1/code/desktop/me', '/api/v1/code/desktop/wallet'].includes(row.path ?? '')
     expect(row.cookie).toBe(detail ? 'gate=private; route=account' : 'gate=private; route=auth')
   }
   expect(JSON.stringify(await f.account.getState())).not.toContain('private')
@@ -1022,7 +1022,7 @@ it('sends a development grant only to its configured inference origin', async ()
   await fetch(f.callback(), { redirect: 'manual' })
   await f.wait('succeeded')
   expect((await f.account.resolveRequestCredential('http://inference.example.test:8094/api'))?.headers)
-    .toEqual({ 'x-dsh-auth-token': 'test-account-token' })
+    .toEqual({ 'x-ttoken-code-token': 'test-account-token' })
   for (const url of ['https://api.deepseek.com', 'http://inference.example.test:8095/api',
     'https://inference.example.test:8094/api', 'http://user@inference.example.test:8094/api']) {
     expect(await f.account.resolveRequestCredential(url)).toBeUndefined()
@@ -1100,12 +1100,12 @@ it.each([
   await expect.poll(f.logoutCount).toBe(1)
   const paths = f.receivedHeaders.map(item => item.path)
   expect(paths.slice(0, 4)).toEqual([
-    '/auth-api/v0/dsh/auth_init', '/auth-api/v0/dsh/auth_cancel',
-    '/auth-api/v0/dsh/auth_init', '/auth-api/v0/dsh/auth_exchange',
+    '/api/v1/code/desktop/auth_init', '/api/v1/code/desktop/auth_cancel',
+    '/api/v1/code/desktop/auth_init', '/api/v1/code/desktop/auth_exchange',
   ])
   // Profile and balance requests run concurrently.
-  expect(paths.slice(4, -1).sort()).toEqual(['/api/v0/users/get_user_summary', '/auth-api/v0/users/current'])
-  expect(paths.slice(-1)).toEqual(['/auth-api/v0/users/logout'])
+  expect(paths.slice(4, -1).sort()).toEqual(['/api/v1/code/desktop/wallet', '/api/v1/code/desktop/me'])
+  expect(paths.slice(-1)).toEqual(['/api/v1/code/desktop/logout'])
   expect(f.receivedHeaders.map(item => item.clientPlatform)).toEqual(f.receivedHeaders.map(() => expected))
   for (const header of f.receivedHeaders) {
     expect(header).toMatchObject({ bundleId: '', version: '1.2.3', locale: 'en_US', timezoneOffset: '28800' })
@@ -1129,10 +1129,10 @@ it('keeps one login attempt on the identity captured by its own initiating call'
   expect(f.receivedHeaders.map(header => [
     header.path, header.bundleId, header.clientPlatform, header.version, header.locale, header.timezoneOffset,
   ])).toEqual([
-    ['/auth-api/v0/dsh/auth_init', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/dsh/auth_cancel', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/dsh/auth_init', '', 'web', '9.9.9', 'en_US', '-18000'],
-    ['/auth-api/v0/dsh/auth_exchange', '', 'web', '9.9.9', 'en_US', '-18000'],
+    ['/api/v1/code/desktop/auth_init', '', 'web', '1.0.0', 'zh_CN', '28800'],
+    ['/api/v1/code/desktop/auth_cancel', '', 'web', '1.0.0', 'zh_CN', '28800'],
+    ['/api/v1/code/desktop/auth_init', '', 'web', '9.9.9', 'en_US', '-18000'],
+    ['/api/v1/code/desktop/auth_exchange', '', 'web', '9.9.9', 'en_US', '-18000'],
   ])
 })
 
@@ -1146,9 +1146,9 @@ it('derives the client headers independently for profile, balance, and logout ca
   expect(f.receivedHeaders.map(header => [
     header.path, header.bundleId, header.clientPlatform, header.version, header.locale, header.timezoneOffset,
   ])).toEqual([
-    ['/auth-api/v0/users/current', '', 'web', '9.9.9', 'en_US', '-18000'],
-    ['/api/v0/users/get_user_summary', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/users/logout', '', 'web', '2.0.0', 'en_US', '3600'],
+    ['/api/v1/code/desktop/me', '', 'web', '9.9.9', 'en_US', '-18000'],
+    ['/api/v1/code/desktop/wallet', '', 'web', '1.0.0', 'zh_CN', '28800'],
+    ['/api/v1/code/desktop/logout', '', 'web', '2.0.0', 'en_US', '3600'],
   ])
 })
 

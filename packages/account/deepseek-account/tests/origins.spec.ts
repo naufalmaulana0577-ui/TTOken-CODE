@@ -44,8 +44,8 @@ it('routes only notification APIs to Harness while account APIs and pages stay o
     const url = input
     requests.push(url)
     const path = new URL(url).pathname
-    const payload = path === '/auth-api/v0/users/current' ? { id: 'account', email: '' }
-      : path === '/api/v0/users/get_user_summary' ? { normal_wallets: [], bonus_wallets: [] }
+    const payload = path === '/api/v1/code/desktop/me' ? { id: 'account', email: '' }
+      : path === '/api/v1/code/desktop/wallet' ? { normal_wallets: [], bonus_wallets: [] }
         : path.endsWith('/list') ? { notifications: [content], next_poll_after: 600 }
           : path.endsWith('/content') ? content : { acked: true }
     return new Response(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: payload } }))
@@ -57,11 +57,11 @@ it('routes only notification APIs to Harness while account APIs and pages stay o
   expect((await account.getNotificationContent(id, client))?.id).toBe(id)
   expect(await account.reportNotificationEvent(id, 'dismissed', client)).toBe(true)
   expect(requests).toEqual([
-    'https://platform.deepseek.com/auth-api/v0/users/current',
-    'https://platform.deepseek.com/api/v0/users/get_user_summary',
-    'https://harness.deepseek.com/api/v0/users/notifications/list',
-    `https://harness.deepseek.com/api/v0/users/notifications/content?id=${id}`,
-    'https://harness.deepseek.com/api/v0/users/notifications/events',
+    'https://platform.deepseek.com/api/v1/code/desktop/me',
+    'https://platform.deepseek.com/api/v1/code/desktop/wallet',
+    'https://harness.deepseek.com/api/v1/code/desktop/notifications/list',
+    `https://harness.deepseek.com/api/v1/code/desktop/notifications/content?id=${id}`,
+    'https://harness.deepseek.com/api/v1/code/desktop/notifications/events',
   ])
 })
 
@@ -77,8 +77,8 @@ it('keeps private grants and embedded pages on Platform while allowing a notific
     requestHeaders: { 'x-deployment': 'base', 'x-account': 'account' },
   })
   const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-    expect(input).toBe('https://notifications.example/api/v0/users/notifications/list')
-    expect(init?.headers).toMatchObject({ 'x-deployment': 'base', 'x-account': 'account', 'x-dsh-auth-token': 'fixture-token' })
+    expect(input).toBe('https://notifications.example/api/v1/code/desktop/notifications/list')
+    expect(init?.headers).toMatchObject({ 'x-deployment': 'base', 'x-account': 'account', 'x-ttoken-code-token': 'fixture-token' })
     return new Response(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: { notifications: [], next_poll_after: 600 } } }))
   })
   await account.getNotifications({ version: 'test', locale: 'en', timezoneOffsetSeconds: 0 })

@@ -40,14 +40,85 @@
             maxTokens: 64000
 
 # Analitik produk upstream menyala secara bawaan di profil desktop dan
-# mengirim ke kolektor DeepSeek. Distribusi ini mematikannya. Baris exporter
-# tetap terpasang karena baris ini meng-inject layanannya.
+# mengirim ke kolektor DeepSeek. Distribusi ini mematikan analitik dan
+# exporter-nya. Pemanggil analitik di klien semuanya opsional.
 - id: product-analytics
-  config:
-    enabled: false
-    appVersion: !!js process.env.DSH_CLIENT_VERSION
+  disabled: true
+- id: desktop-product-telemetry
+  disabled: true
 
 # Unggahan log sesi saat user memberi feedback juga menuju kolektor DeepSeek.
 # Ini setara dengan saklar DSH_TELEMETRY_DISABLED milik upstream.
 - id: session-telemetry-otel
+  disabled: true
+
+# Plugin yang terikat ke layanan DeepSeek: akun dan login, provider resmi,
+# pencarian web lewat API DeepSeek, unggahan log sesi untuk melatih model
+# DeepSeek, impor riwayat chat DeepSeek, terjemahan lewat DeepSeek Flash,
+# berbagi sesi lewat server DeepSeek, dan pasar plugin DeepSeek.
+- id: deepseek-account
+  disabled: true
+- id: deepseek-auth
+  disabled: true
+- id: llm-deepseek-account
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+- id: deepseek-llm-api-extensions
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: session-log-deepseek
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+- id: web-deepseek-api
+  disabled: true
+- id: deepseek-chat-import
+  disabled: true
+- id: translator
+  disabled: true
+- id: cot-translation
+  disabled: true
+- id: liveshare-share-host
+  disabled: true
+- id: ui-plugin-market
+  disabled: true
+- id: cli-account
+  disabled: true
+
+# Halaman antarmuka untuk layanan di atas, yang kosong atau menyesatkan tanpa
+# layanannya: akun, unggahan log sesi, pencarian web, dan umpan balik pesan
+# yang dikirim ke DeepSeek.
+- id: ui-settings-account
+  disabled: true
+- id: ui-account-notifications
+  disabled: true
+- id: ui-settings-session-log
+  disabled: true
+- id: ui-settings-web-search
+  disabled: true
+- id: message-feedback
+  disabled: true
+- id: ui-message-feedback
+  disabled: true
+- id: command-feedback
+  disabled: true
+
+# Fitur ekosistem upstream: halaman Plugins menampilkan nama paket upstream,
+# rekomendasi plugin, skill lencana "powered by DSH", dan konteks pengembangan
+# upstream yang menyebut produknya di prompt model.
+- id: ui-plugin-manager
+  disabled: true
+- id: plugin-recommendations
+  disabled: true
+- id: client-ui-plugin-recommendations
+  disabled: true
+- id: creation-recommendations
+  disabled: true
+- id: client-ui-creation-recommendations
+  disabled: true
+- id: skill-badge
+  disabled: true
+- id: harness-dev-context
   disabled: true

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Harness development context",
-    "description": "Give the model the Harness source directory and Web URL without changing its system prompt."
+    "title": "TTOken Code development context",
+    "description": "Give the model the TTOken Code source directory and Web URL without changing its system prompt."
   }
 }

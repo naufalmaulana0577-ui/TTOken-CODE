@@ -8,7 +8,7 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 |---|---|
 | `brand.json` | Nama produk, app ID, skema URL, awalan nama installer, nama direktori data |
 | `apply-brand.mjs` | Menerapkan semua perbedaan ke pohon sumber. Aman dijalankan berulang |
-| `layer/cordis.patch.yml` | Lapisan Cordis: rute TTOken Gateway, model bawaan, telemetri upstream dimatikan |
+| `layer/cordis.patch.yml` | Lapisan Cordis: rute TTOken Gateway, model bawaan, telemetri upstream dimatikan, plugin yang terikat layanan DeepSeek dimatikan |
 | `icons/` | Ikon aplikasi dan tray, dirender dari `ttoken-code-app-icon.svg` di repo TTOken |
 | `installer/`, `renderer/`, `web/` | Gambar merek installer, merek layar sambutan, dan favicon |
 | `client/` | Wordmark dan mask indikator berjalan untuk antarmuka di dalam jendela |
@@ -28,6 +28,11 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 10. **Penerbit** di metadata `.exe`, serta kunci registry dan nama mutex perintah PATH.
 11. **Layar sambutan** meminta API key TTOken Gateway dan tidak menawarkan login akun DeepSeek.
 12. **Merek di dalam jendela**: mark dan wordmark (`FishLogo`, `BrandWordmark` di `ui-primitives`), nama build di sidebar, judul jendela, judul beranda, indikator berjalan, dan dekorasi paus piksel di beranda yang tidak lagi dipasang.
+13. **Identitas agent** di prompt sistem: model memperkenalkan diri sebagai TTOken Code.
+14. **Teks antarmuka** di semua kamus bahasa: "DeepSeek Harness", "DSH", dan "Harness" menjadi TTOken Code; contoh perintah `dsh` di dalam kurung dihapus. Hanya isi literal string yang disentuh.
+15. **Menu "Manage dsh Command"** dihapus.
+16. **Layar sambutan**: mark di tengah, nama produk di bawahnya, dan satu baris "Powered by DeepSeek Harness". Ini satu-satunya tempat nama upstream terlihat user; aturan lain melewati frasa itu.
+
 
 ## Alur kerja
 
@@ -88,3 +93,21 @@ Urut dari yang paling menghalangi rilis:
 8. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
 9. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.
 10. **Penyetelan rute Gateway**: `compat` (format thinking, field max token) belum diisi dan perlu dicek saat percakapan pertama berjalan.
+
+## Yang sengaja dimatikan
+
+`layer/cordis.patch.yml` mematikan plugin yang terikat ke layanan DeepSeek atau ekosistem upstream. Akibatnya untuk user:
+
+- Tidak ada login akun DeepSeek dan provider resmi DeepSeek. Model hanya lewat TTOken Gateway.
+- Tidak ada pencarian web bawaan, karena upstream memakai API pencarian DeepSeek. Agent tetap bisa membuka URL.
+- Tidak ada halaman Plugins, pasar plugin, rekomendasi plugin, berbagi sesi, impor chat DeepSeek, terjemahan reasoning, dan umpan balik pesan.
+- Tidak ada pengiriman log sesi atau analitik ke server DeepSeek.
+
+## Nama upstream yang masih ada
+
+Tidak terlihat dalam pemakaian biasa, tetapi masih ada:
+
+- `LICENSE` dengan baris hak cipta DeepSeek. Lisensi MIT mewajibkannya ikut dalam setiap distribusi; jangan dihapus.
+- Nama paket internal `@deepseek-ai/dsh-*` di dalam folder instalasi.
+- Teks antarmuka milik plugin yang dimatikan, dan teks yang hanya muncul untuk provider DeepSeek resmi.
+- Nama model dari DeepSeek di daftar model Gateway, misalnya DeepSeek V4.1 Flash. Itu nama model yang dijual, bukan jejak upstream.

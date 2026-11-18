@@ -66,7 +66,8 @@ const report = []
  * Sebuah aturan sah bila token upstream masih ada (belum diterapkan) atau
  * token pengganti sudah ada (sudah diterapkan). Bila keduanya nol, upstream
  * sudah berubah dan aturannya harus diperbarui.
- * @param {{ name: string, scopes: string[], pairs: [string, string][] }} rule Aturan penggantian.
+ * Frasa di `keep` tidak disentuh dan tidak dihitung, misalnya atribusi yang memang harus memuat nama upstream.
+ * @param {{ name: string, scopes: string[], pairs: [string, string][], keep?: string[] }} rule Aturan penggantian.
  * @returns {void}
  */
 function replaceTokens(rule) {
@@ -79,11 +80,14 @@ function replaceTokens(rule) {
     if (buffer.includes(0)) continue
     const original = buffer.toString('utf8')
     let next = original
+    const kept = rule.keep ?? []
+    kept.forEach((phrase, index) => { next = next.split(phrase).join(`\u0000KEEP${index}\u0000`) })
     for (const [from, to] of rule.pairs) {
       pending += count(next, from)
       next = next.split(from).join(to)
     }
     for (const [, to] of rule.pairs) applied += count(next, to)
+    kept.forEach((phrase, index) => { next = next.split(`\u0000KEEP${index}\u0000`).join(phrase) })
     if (next === original) continue
     touched += 1
     if (!DRY && !CHECK) writeFileSync(absolute, next)
@@ -227,11 +231,67 @@ const MARK_BODY = roundedRect(0, 0, 56, 16, 8) + roundedRect(6, 4, 18, 44, 9) + 
 const MARK_BAR = roundedRect(32, 37, 18, 8, 4)
 const KUNYIT = '#FFB21A'
 
+/** Berkas kamus bahasa: `locale.ts`, `locales.ts`, dan isi folder `locale/` atau `locales/`. */
+const LOCALE_FILE = /(^|\/)(locales?\.ts|locales?\/[^/]+\.(ts|json))$/
+/** Literal string satu baris dalam kutip tunggal, ganda, atau backtick. */
+const STRING_LITERAL = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g
+
+/**
+ * Ganti nama upstream di dalam literal string semua kamus bahasa.
+ *
+ * Kode di luar literal tidak disentuh. Literal yang memuat frasa `keep` dilewati utuh.
+ * @param {{ name: string, scopes: string[], keep: string[] }} rule Aturan penggantian.
+ * @returns {void}
+ */
+function rebrandLocaleStrings(rule) {
+  const product = brand.productName
+  const edits = [
+    // Contoh perintah huruf kecil di dalam kurung, dalam bahasa apa pun.
+    [/\s*[(（][^()（）]*\bdsh\b[^()（）]*[)）]/g, ''],
+    [new RegExp(`\\b${upstream.productName}\\b`, 'g'), product],
+    [/\bDSH\b/g, product],
+    [/\bHarness\b/g, product],
+  ]
+  let pending = 0
+  let touched = 0
+  let files = 0
+  for (const path of trackedTextFiles(rule.scopes)) {
+    if (!LOCALE_FILE.test(path) || /(^|\/)(tests?|fixtures)\//.test(path) || /\.(spec|test)\./.test(path)) continue
+    files += 1
+    const absolute = join(ROOT, path)
+    const original = readFileSync(absolute, 'utf8')
+    let changes = 0
+    const next = original.replace(STRING_LITERAL, (literal, quote, body) => {
+      if (rule.keep.some(phrase => body.includes(phrase))) return literal
+      let value = body
+      for (const [pattern, replacement] of edits) value = value.replace(pattern, () => { changes += 1; return replacement })
+      return value === body ? literal : `${quote}${value}${quote}`
+    })
+    if (changes === 0) continue
+    pending += changes
+    touched += 1
+    if (!DRY && !CHECK) writeFileSync(absolute, next)
+  }
+  if (files === 0) {
+    failures.push(`${rule.name}: tidak ada berkas kamus bahasa; upstream berubah, perbarui aturannya`)
+    return
+  }
+  if (CHECK && pending > 0) {
+    failures.push(`${rule.name}: ${pending} penyebutan upstream tersisa di ${touched} berkas`)
+    return
+  }
+  report.push(pending === 0 ? `${rule.name}: sudah diterapkan (${files} berkas)` : `${rule.name}: ${pending} penggantian di ${touched} berkas${DRY ? ' (rencana)' : ''}`)
+}
+
+/** Satu-satunya tempat nama upstream boleh terlihat user: baris atribusi di layar sambutan. */
+const ATTRIBUTION = 'Powered by DeepSeek Harness'
+
 // 1. Nama produk yang terlihat user: menu, dialog, installer, nama .app dan .exe.
 replaceTokens({
   name: 'nama-produk',
   scopes: ['apps/desktop'],
   pairs: [[upstream.productName, brand.productName]],
+  keep: [ATTRIBUTION],
 })
 
 // 2. Nama file installer dan direktori cache updater. Skrip unggah dan publisher
@@ -495,6 +555,66 @@ editFile({
       `  // TTOken Code: only the sidebar brand slots are filled.\n  if (process.env.DSH_CLIENT_BUILD_PROFILE !== 'official') return\n`,
     ],
   ],
+})
+
+// 13. Identitas agent di prompt sistem. Upstream membuat model memperkenalkan
+//     diri sebagai produk upstream kepada user.
+editFile({
+  name: 'identitas-agent',
+  path: 'packages/core/system-prompt/src/index.ts',
+  pairs: [[`text: 'You are an AI agent powered by ${upstream.productName}.',`, `text: 'You are ${brand.productName}, an AI coding agent.',`]],
+})
+
+// 14. Teks antarmuka di semua kamus bahasa. Hanya isi literal string yang
+//     disentuh, bukan kode. Contoh perintah huruf kecil (`dsh web`) di dalam
+//     kurung dihapus, karena perintah itu tidak dipasang untuk user.
+rebrandLocaleStrings({
+  name: 'teks-antarmuka',
+  scopes: ['packages', 'apps/desktop/src', 'apps/desktop/installer/locales', 'apps/web/src'],
+  keep: [ATTRIBUTION],
+})
+
+// 15. Menu "Manage dsh Command…" dihapus: perintah itu bernama upstream.
+editFile({
+  name: 'menu-perintah-cli',
+  path: 'apps/desktop/src/main.ts',
+  pairs: [[
+    `      ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],\n`,
+    `      ? [] : [], // TTOken Code: the upstream-named command manager is not offered.\n`,
+  ]],
+})
+
+// 16. Layar sambutan: mark di tengah, nama produk di bawahnya, satu baris
+//     atribusi. Tagline upstream dihapus.
+copyAssets('mark-sambutan', [['ttoken/renderer/welcome-mark.svg', 'apps/desktop/renderer/assets/welcome-mark.svg']])
+editFile({
+  name: 'sambutan-tata-letak',
+  path: 'apps/desktop/src/client/WelcomePage.tsx',
+  pairs: [
+    [
+      `<img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />`,
+      `<img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" hidden={page === 'entry'} />`,
+    ],
+    [
+      `<h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>`,
+      `<img className="mark" src="assets/welcome-mark.svg" alt="" width="96" height="82" />\n        <h1 id="welcome-heading">{m.welcomeBrand}</h1>`,
+    ],
+  ],
+})
+editFile({
+  name: 'sambutan-gaya',
+  path: 'apps/desktop/renderer/welcome.css',
+  pairs: [[
+    `:lang(en) .tagline em {\n  font-size: inherit;\n}\n`,
+    `:lang(en) .tagline em {\n  font-size: inherit;\n}\n\n/* TTOken Code: centered mark above the product name, with one attribution line. */\n.tagline .mark {\n  display: block;\n  width: 96px;\n  height: 82px;\n  margin: 0 auto 20px;\n  user-select: none;\n  -webkit-user-drag: none;\n}\n\n.tagline h1 {\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family-brand);\n  font-size: 30px;\n  font-weight: 600;\n  line-height: 38px;\n}\n\n.tagline p {\n  margin-top: 12px;\n  font-size: 13px;\n  font-weight: 400;\n  line-height: 18px;\n}\n`,
+  ]],
+})
+setQuotedValues({
+  name: 'sambutan-atribusi',
+  paths: ['apps/desktop/src/locale.ts'],
+  pattern: /(welcomeDescription: )('[^'\n]*'|"[^"\n]*")/g,
+  value: ATTRIBUTION,
+  expected: 8,
 })
 
 for (const line of report) console.log(line)

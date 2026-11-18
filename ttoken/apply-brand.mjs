@@ -834,6 +834,11 @@ editFile({
 })
 writeGenerated('rekomendasi-plugin-tersembunyi (modul)', 'packages/experimental/plugin-recommendations/src/ttoken-hidden.ts', HIDDEN_MODULE)
 editFile({
+  name: 'rekomendasi-plugin-tersembunyi (tsconfig)',
+  path: 'packages/experimental/plugin-recommendations/tsconfig.json',
+  pairs: [[`    "src/skill.ts"\n`, `    "src/skill.ts",\n    "src/ttoken-hidden.ts"\n`]],
+})
+editFile({
   name: 'rekomendasi-plugin-tersembunyi',
   path: 'packages/experimental/plugin-recommendations/src/skill.ts',
   pairs: [

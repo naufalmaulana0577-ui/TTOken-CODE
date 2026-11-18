@@ -80,7 +80,9 @@ Urut dari yang paling menghalangi rilis:
 2. **Update feed.** Build tanpa tanda tangan tidak punya auto-update. Build rilis butuh tempat hosting artefak milik sendiri (`DOWNLOAD_*`).
 3. **Login akun DeepSeek** sudah disembunyikan dari layar sambutan, tetapi plugin akunnya masih terpasang dan masih bisa muncul di pengaturan. Perlu diganti login akun TTOken.
 4. **Antarmuka web di dalam jendela** (`packages/client`, `packages/web`, `apps/web`) masih menyebut nama upstream, memakai tema upstream, dan memuat maskot upstream (`running-whale@2x.png` serta logo yang ditulis langsung di komponen). Ini dikerjakan bersama reskin dan wajib selesai sebelum dibagikan ke user.
-5. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.
-6. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
-7. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.
-8. **Penyetelan rute Gateway**: `compat` (format thinking, field max token) belum diisi dan perlu dicek saat percakapan pertama berjalan.
+5. **Tagline layar sambutan** masih milik DeepSeek ("Build potential. Explore intelligence.", kunci `welcomeDescription` di `apps/desktop/src/locale.ts`, delapan bahasa). Menunggu tagline TTOken dari pemilik produk.
+6. **API key otomatis dari akun TTOken.** Layar sambutan sekarang meminta user menempelkan API key. Tujuannya: user login akun TTOken, lalu aplikasi menerima key Gateway tanpa disalin tangan. Butuh endpoint otorisasi di API TTOken; skema `ttoken-code://` sudah terdaftar untuk jalur baliknya.
+7. **Perintah `dsh`** yang bisa dipasang aplikasi ke PATH masih bernama `dsh`.
+8. **Bahasa Indonesia** belum ada di tabel locale desktop maupun installer.
+9. **Tanda tangan**: Apple Developer ID dan sertifikat Windows.
+10. **Penyetelan rute Gateway**: `compat` (format thinking, field max token) belum diisi dan perlu dicek saat percakapan pertama berjalan.

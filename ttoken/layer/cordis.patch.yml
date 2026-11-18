@@ -1,0 +1,53 @@
+# Lapisan distribusi TTOken Code.
+#
+# Diterapkan paling akhir oleh Host desktop, di atas bundle base dan web-app.
+# Formatnya sama dengan overlay `--patch` upstream: baris ber-`id` mengganti
+# seluruh `config` baris yang dituju, jadi setiap baris di bawah menulis ulang
+# semua field yang ia miliki.
+#
+# Sumber kebenaran ada di file ini. `ttoken/apply-brand.mjs` menanamkannya ke
+# `apps/desktop-host/src/ttoken-layer.ts`; jangan edit file hasil itu.
+
+# Model bawaan untuk Agent baru: rute Gateway, bukan rute resmi DeepSeek.
+- id: agent-default-model
+  config:
+    provider: ttoken
+    model: deepseek/deepseek-v4.1-flash
+
+# TTOken Gateway sebagai rute OpenAI-compatible. Key tidak ditulis di sini:
+# `apiKeyEnv` adalah referensi kredensial yang diisi user lewat halaman Models.
+# Daftar model mengikuti lineup Gateway (FENRIR_MODEL_SLUGS di repo TTOken).
+- id: llm-pi-ai
+  config:
+    providers:
+      ttoken:
+        displayName: TTOken Gateway
+        apiKeyEnv: TTOKEN_API_KEY
+        api: openai-completions
+        baseURL: https://api.ttoken.dev/v1
+        models:
+          - id: deepseek/deepseek-v4.1-flash
+            name: DeepSeek V4.1 Flash
+            contextWindow: 1000000
+            maxTokens: 128000
+          - id: z-ai/glm-5.3-flash
+            name: GLM 5.3 Flash
+            contextWindow: 1000000
+            maxTokens: 128000
+          - id: qwen/qwen3.8-27b
+            name: Qwen 3.8 27B
+            contextWindow: 256000
+            maxTokens: 64000
+
+# Analitik produk upstream menyala secara bawaan di profil desktop dan
+# mengirim ke kolektor DeepSeek. Distribusi ini mematikannya. Baris exporter
+# tetap terpasang karena baris ini meng-inject layanannya.
+- id: product-analytics
+  config:
+    enabled: false
+    appVersion: !!js process.env.DSH_CLIENT_VERSION
+
+# Unggahan log sesi saat user memberi feedback juga menuju kolektor DeepSeek.
+# Ini setara dengan saklar DSH_TELEMETRY_DISABLED milik upstream.
+- id: session-telemetry-otel
+  disabled: true

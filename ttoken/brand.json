@@ -1,0 +1,14 @@
+{
+  "productName": "TTOken Code",
+  "appId": "dev.ttoken.code",
+  "protocolScheme": "ttoken-code",
+  "artifactPrefix": "ttoken-code",
+  "homeDirName": ".ttoken-code",
+  "upstream": {
+    "productName": "DeepSeek Harness",
+    "appIds": ["com.deepseek.harness", "com.deepseek.dsh"],
+    "protocolScheme": "dsh",
+    "artifactPrefix": "deepseek-harness",
+    "homeDirName": ".dsh"
+  }
+}

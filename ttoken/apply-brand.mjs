@@ -23,7 +23,7 @@ const brand = JSON.parse(readFileSync(join(ROOT, 'ttoken', 'brand.json'), 'utf8'
 const upstream = brand.upstream
 /** Login akun TTOken menyala hanya setelah rute `/api/v1/code/desktop` di server TTOken ter-deploy. */
 const ACCOUNT_LOGIN = brand.accountLogin === true
-/** Pencarian web menyala hanya setelah `POST /v1/tools/search` di server TTOken ter-deploy dengan key Brave. */
+/** Pencarian web menyala hanya setelah `POST /v1/tools/search` di server TTOken ter-deploy dengan key pencarian (DeepSeek Flash native, atau Brave). */
 const WEB_SEARCH = brand.webSearch === true
 
 const flags = new Set(process.argv.slice(2))

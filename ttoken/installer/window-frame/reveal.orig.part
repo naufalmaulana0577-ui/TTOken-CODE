@@ -1,0 +1,2 @@
+static void RevealFinish(HWND window, ProgressPage& page) {
+    page.controlsVisible = true;

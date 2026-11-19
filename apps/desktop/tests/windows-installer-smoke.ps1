@@ -210,11 +210,11 @@ try {
     $results.Add('launch-failure-retry-and-prompt-dismissal')
 
     function Assert-RunningRejected([Diagnostics.Process]$Setup) {
-        [void](Wait-Control $Setup $copy.INSTALLER_RUNNING -Dialog)
+        [void](Wait-Control $Setup $copy.INSTALLER_RUNNING_CLOSE -Dialog)
         $visible = [InstallerCapture]::VisibleText($Setup.Id)
         if ($visible.Contains('HarnessInstallerProgress')) { throw 'Running-app rejection started progress UI' }
         if (Get-ChildItem -LiteralPath $OutputDirectory -Directory -Filter 'Installed App.new-*') { throw 'Running-app rejection staged payload files' }
-        Dismiss $Setup $copy.INSTALLER_RUNNING
+        Dismiss $Setup $copy.INSTALLER_RUNNING_CLOSE
         if (-not $Setup.WaitForExit(10000) -or $Setup.ExitCode -ne 2 -or $app.HasExited) { throw 'Running application was not preserved' }
     }
     $process = Start-Process -FilePath $Installer -ArgumentList ('/THEME=dark /D=' + $installPath) -PassThru -WindowStyle Hidden

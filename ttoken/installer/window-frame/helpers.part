@@ -1,0 +1,151 @@
+// TTOken Code: the mark fills with water above the percentage. Logical coordinates of the mark's design grid.
+constexpr REAL kMarkScale = 3.0f;
+constexpr REAL kMarkLeft = 300.0f - 28.0f * kMarkScale;
+constexpr REAL kMarkTop = 142.0f;
+
+static void AddRoundedRect(GraphicsPath& path, const water_fill::RoundedRect& rect) {
+    const REAL x = kMarkLeft + static_cast<REAL>(rect.x) * kMarkScale;
+    const REAL y = kMarkTop + static_cast<REAL>(rect.y) * kMarkScale;
+    const REAL width = static_cast<REAL>(rect.width) * kMarkScale;
+    const REAL height = static_cast<REAL>(rect.height) * kMarkScale;
+    const REAL diameter = static_cast<REAL>(rect.radius) * kMarkScale * 2.0f;
+    path.StartFigure();
+    path.AddArc(x, y, diameter, diameter, 180.0f, 90.0f);
+    path.AddArc(x + width - diameter, y, diameter, diameter, 270.0f, 90.0f);
+    path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0.0f, 90.0f);
+    path.AddArc(x, y + height - diameter, diameter, diameter, 90.0f, 90.0f);
+    path.CloseFigure();
+}
+
+// Flat caption band, a warm vertical wash, and a soft kunyit glow behind the mark; painted once per page.
+static void PaintBackdrop(Graphics& graphics, bool dark) {
+    const Color base = dark ? Color(255, 21, 21, 23) : Color(255, 255, 255, 255);
+    const Color foot = dark ? Color(255, 30, 24, 14) : Color(255, 255, 245, 226);
+    graphics.Clear(base);
+    LinearGradientBrush wash(PointF(0.0f, 48.0f), PointF(0.0f, 600.0f), base, foot);
+    graphics.FillRectangle(&wash, 0.0f, 48.0f, 600.0f, 552.0f);
+    GraphicsPath halo;
+    halo.AddEllipse(30.0f, -48.0f, 540.0f, 540.0f);
+    PathGradientBrush glow(&halo);
+    glow.SetCenterColor(dark ? Color(60, 255, 178, 26) : Color(52, 255, 178, 26));
+    Color edge(0, 255, 178, 26);
+    INT edges = 1;
+    glow.SetSurroundColors(&edge, &edges);
+    glow.SetBlendBellShape(1.0f, 1.0f);
+    graphics.FillPath(&glow, &halo);
+}
+
+// Draws the water into the page's layer in device pixels, then fills the T with it through a texture.
+// The cursor dash blinks like a terminal prompt until the finish page.
+static void PaintMark(Graphics& graphics, const ProgressPage& page, ULONGLONG now) {
+    const water_fill::Simulation& water = page.water;
+    const REAL device = static_cast<REAL>(page.dpi) / 96.0f;
+    const REAL unit = kMarkScale * device;
+    {
+        Graphics layer(page.waterLayer);
+        layer.SetSmoothingMode(SmoothingModeAntiAlias);
+        layer.SetPixelOffsetMode(PixelOffsetModeHalf);
+        layer.Clear(Color(static_cast<BYTE>(page.dark ? 34 : 44), 255, 178, 26));
+        const double level = water.Level();
+        if (level < water_fill::kHeight) {
+            PointF surface[water_fill::kColumns];
+            for (int column = 0; column < water_fill::kColumns; ++column) {
+                surface[column] = PointF(static_cast<REAL>(water_fill::Simulation::ColumnX(column)) * unit,
+                    static_cast<REAL>(water.SurfaceY(column)) * unit);
+            }
+            const REAL right = static_cast<REAL>(page.waterLayer->GetWidth()) + 2.0f;
+            const REAL bottom = static_cast<REAL>(page.waterLayer->GetHeight()) + 2.0f;
+            GraphicsPath body;
+            body.AddCurve(surface, water_fill::kColumns, 0.5f);
+            body.AddLine(surface[water_fill::kColumns - 1], PointF(right, bottom));
+            body.AddLine(PointF(right, bottom), PointF(-2.0f, bottom));
+            body.CloseFigure();
+            LinearGradientBrush depth(PointF(0.0f, static_cast<REAL>(level - 4.5) * unit), PointF(0.0f, bottom),
+                Color(255, 255, 201, 72), Color(255, 240, 148, 6));
+            depth.SetWrapMode(WrapModeTileFlipXY);
+            layer.FillPath(&depth, &body);
+            Pen crest(Color(static_cast<BYTE>(page.dark ? 230 : 210), 255, 236, 178), 1.4f * device);
+            layer.DrawCurve(&crest, surface, water_fill::kColumns, 0.5f);
+            Pen rim(Color(120, 255, 255, 255), device);
+            SolidBrush shine(Color(150, 255, 255, 255));
+            for (int index = 0; index < water_fill::kMaxBubbles; ++index) {
+                const water_fill::Bubble& bubble = water.BubbleAt(index);
+                if (!bubble.live) continue;
+                const REAL radius = static_cast<REAL>(water.BubbleRadius(bubble)) * unit;
+                const REAL x = static_cast<REAL>(water_fill::Simulation::BubbleX(bubble)) * unit;
+                const REAL y = static_cast<REAL>(bubble.y) * unit;
+                layer.DrawEllipse(&rim, x - radius, y - radius, 2.0f * radius, 2.0f * radius);
+                const REAL glint = radius * 0.32f;
+                layer.FillEllipse(&shine, x - radius * 0.45f - glint, y - radius * 0.45f - glint, 2.0f * glint, 2.0f * glint);
+            }
+        }
+    }
+    GraphicsPath vessel(FillModeWinding);
+    for (const water_fill::RoundedRect& rect : water_fill::kVessel) AddRoundedRect(vessel, rect);
+    TextureBrush fill(page.waterLayer, WrapModeClamp);
+    fill.TranslateTransform(kMarkLeft, kMarkTop);
+    fill.ScaleTransform(1.0f / device, 1.0f / device);
+    graphics.FillPath(&fill, &vessel);
+    GraphicsPath cursor;
+    AddRoundedRect(cursor, water_fill::kCursor);
+    const double blink = page.controlsVisible ? 1.0
+        : 0.5 + 0.5 * std::cos(static_cast<double>(now % 1100) / 1100.0 * 6.283185307179586);
+    const BYTE alpha = static_cast<BYTE>(90.0 + 165.0 * blink);
+    SolidBrush ink(page.dark ? Color(alpha, 244, 239, 228) : Color(alpha, 15, 17, 21));
+    graphics.FillPath(&ink, &cursor);
+}
+
+// The percentage under the mark, the installation stage below it, and the wordmark at the foot of the page.
+static void PaintLabels(Graphics& graphics, const ProgressPage& page, const WCHAR* number, const WCHAR* stage) {
+    StringFormat centered;
+    centered.SetAlignment(StringAlignmentCenter);
+    centered.SetLineAlignment(StringAlignmentCenter);
+    FontFamily display(page.displayFamily);
+    FontFamily text(page.textFamily);
+    SolidBrush strong(page.dark ? Color(255, 255, 255, 255) : Color(255, 15, 17, 21));
+    Font percent(&display, 44.0f, page.displayStyle, UnitPixel);
+    graphics.DrawString(number, -1, &percent, RectF(0.0f, 300.0f, 600.0f, 60.0f), &centered, &strong);
+    if (stage[0]) {
+        SolidBrush muted(page.dark ? Color(150, 255, 255, 255) : Color(140, 15, 17, 21));
+        Font caption(&text, 14.0f, FontStyleRegular, UnitPixel);
+        graphics.DrawString(stage, -1, &caption, RectF(48.0f, 362.0f, 504.0f, 24.0f), &centered, &muted);
+    }
+    StringFormat typographic(StringFormat::GenericTypographic());
+    Font name(&display, 17.0f, page.displayStyle, UnitPixel);
+    Font product(&text, 17.0f, FontStyleRegular, UnitPixel);
+    RectF nameBounds, productBounds;
+    graphics.MeasureString(L"TTOken", -1, &name, PointF(0.0f, 0.0f), &typographic, &nameBounds);
+    graphics.MeasureString(L" Code", -1, &product, PointF(0.0f, 0.0f), &typographic, &productBounds);
+    const REAL left = 300.0f - (nameBounds.Width + productBounds.Width) / 2.0f;
+    SolidBrush faint(page.dark ? Color(125, 255, 255, 255) : Color(115, 15, 17, 21));
+    graphics.DrawString(L"TTOken", -1, &name, PointF(left, 552.0f), &typographic, &strong);
+    graphics.DrawString(L" Code", -1, &product, PointF(left + nameBounds.Width, 552.0f), &typographic, &faint);
+}
+
+// Splits "Extracting files… %d%%" into the stage text and the number format "%d%%".
+static void SplitCaption(const WCHAR* caption, WCHAR (&stage)[128], WCHAR (&number)[16]) {
+    const WCHAR* marker = wcsstr(caption, L"%d");
+    if (!marker) {
+        lstrcpynW(stage, caption, 128);
+        lstrcpynW(number, L"%d%%", 16);
+        return;
+    }
+    int length = static_cast<int>(marker - caption);
+    while (length > 0 && caption[length - 1] == L' ') --length;
+    lstrcpynW(stage, caption, std::min(length + 1, 128));
+    const WCHAR* end = marker + 2;
+    if (end[0] == L'%' && end[1] == L'%') end += 2;
+    lstrcpynW(number, marker, std::min(static_cast<int>(end - marker) + 1, 16));
+}
+
+// Copies the first installed family among `names` into `family`; false when none is installed.
+static bool FirstFamily(std::initializer_list<const WCHAR*> names, WCHAR (&family)[LF_FACESIZE]) {
+    for (const WCHAR* name : names) {
+        FontFamily candidate(name);
+        if (candidate.IsAvailable()) {
+            lstrcpynW(family, name, LF_FACESIZE);
+            return true;
+        }
+    }
+    return false;
+}

@@ -10,6 +10,10 @@
 #include <gdiplus.h>
 #include <new>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <cwchar>
+#include <initializer_list>
 static HRESULT ApplyInstallerDwmFrame(HWND window) {
     // DWM retains native transitions; WM_NCCALCSIZE removes the visible caption.
     SetWindowLongW(window, GWL_STYLE, GetWindowLongW(window, GWL_STYLE) | WS_THICKFRAME | WS_CAPTION);
@@ -29,6 +33,7 @@ static HRESULT ApplyInstallerDwmFrame(HWND window) {
 #include "restart-banner.h"
 #include "restart-status.h"
 #include "progress.h"
+#include "water-fill.h"
 #include "extract.h"
 #include "extract-report.h"
 #include "directory-report.h"
@@ -144,10 +149,24 @@ struct ProgressPage {
     bool controlsVisible = false;
     int finishChoice = -1;
     HFONT finishFont, launchFont;
+    // TTOken Code: water in the mark, the backdrop copied under every frame, and the split progress captions.
+    water_fill::Simulation water;
+    ULONGLONG lastFrame = 0;
+    Bitmap* waterLayer = nullptr;
+    BYTE* pixels = nullptr;
+    BYTE* backdrop = nullptr;
+    size_t pixelBytes = 0;
+    WCHAR stages[5][128];
+    WCHAR numbers[5][16];
+    WCHAR displayFamily[LF_FACESIZE];
+    WCHAR textFamily[LF_FACESIZE];
+    INT displayStyle = FontStyleRegular;
 
     ~ProgressPage() {
         if (finishFont) DeleteObject(finishFont);
         if (launchFont) DeleteObject(launchFont);
+        delete waterLayer;
+        delete[] backdrop;
         delete buffer;
         delete brand;
         if (previousBitmap) SelectObject(bufferDc, previousBitmap);
@@ -168,16 +187,156 @@ static LRESULT CALLBACK HiddenPageProc(HWND window, UINT message, WPARAM wparam,
     return DefSubclassProc(window, message, wparam, lparam);
 }
 
-static void FillProgress(Graphics& graphics, Brush& brush, REAL width) {
-    if (width <= 0) return;
-    if (width < 4) { graphics.FillRectangle(&brush, 64.0f, 482.0f, width, 6.0f); return; }
-    GraphicsPath path;
-    path.AddArc(64.0f, 482.0f, 4.0f, 4.0f, 180.0f, 90.0f);
-    path.AddArc(64.0f + width - 4, 482.0f, 4.0f, 4.0f, 270.0f, 90.0f);
-    path.AddArc(64.0f + width - 4, 484.0f, 4.0f, 4.0f, 0.0f, 90.0f);
-    path.AddArc(64.0f, 484.0f, 4.0f, 4.0f, 90.0f, 90.0f);
+// TTOken Code: the mark fills with water above the percentage. Logical coordinates of the mark's design grid.
+constexpr REAL kMarkScale = 3.0f;
+constexpr REAL kMarkLeft = 300.0f - 28.0f * kMarkScale;
+constexpr REAL kMarkTop = 142.0f;
+
+static void AddRoundedRect(GraphicsPath& path, const water_fill::RoundedRect& rect) {
+    const REAL x = kMarkLeft + static_cast<REAL>(rect.x) * kMarkScale;
+    const REAL y = kMarkTop + static_cast<REAL>(rect.y) * kMarkScale;
+    const REAL width = static_cast<REAL>(rect.width) * kMarkScale;
+    const REAL height = static_cast<REAL>(rect.height) * kMarkScale;
+    const REAL diameter = static_cast<REAL>(rect.radius) * kMarkScale * 2.0f;
+    path.StartFigure();
+    path.AddArc(x, y, diameter, diameter, 180.0f, 90.0f);
+    path.AddArc(x + width - diameter, y, diameter, diameter, 270.0f, 90.0f);
+    path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0.0f, 90.0f);
+    path.AddArc(x, y + height - diameter, diameter, diameter, 90.0f, 90.0f);
     path.CloseFigure();
-    graphics.FillPath(&brush, &path);
+}
+
+// Flat caption band, a warm vertical wash, and a soft kunyit glow behind the mark; painted once per page.
+static void PaintBackdrop(Graphics& graphics, bool dark) {
+    const Color base = dark ? Color(255, 21, 21, 23) : Color(255, 255, 255, 255);
+    const Color foot = dark ? Color(255, 30, 24, 14) : Color(255, 255, 245, 226);
+    graphics.Clear(base);
+    LinearGradientBrush wash(PointF(0.0f, 48.0f), PointF(0.0f, 600.0f), base, foot);
+    graphics.FillRectangle(&wash, 0.0f, 48.0f, 600.0f, 552.0f);
+    GraphicsPath halo;
+    halo.AddEllipse(30.0f, -48.0f, 540.0f, 540.0f);
+    PathGradientBrush glow(&halo);
+    glow.SetCenterColor(dark ? Color(60, 255, 178, 26) : Color(52, 255, 178, 26));
+    Color edge(0, 255, 178, 26);
+    INT edges = 1;
+    glow.SetSurroundColors(&edge, &edges);
+    glow.SetBlendBellShape(1.0f, 1.0f);
+    graphics.FillPath(&glow, &halo);
+}
+
+// Draws the water into the page's layer in device pixels, then fills the T with it through a texture.
+// The cursor dash blinks like a terminal prompt until the finish page.
+static void PaintMark(Graphics& graphics, const ProgressPage& page, ULONGLONG now) {
+    const water_fill::Simulation& water = page.water;
+    const REAL device = static_cast<REAL>(page.dpi) / 96.0f;
+    const REAL unit = kMarkScale * device;
+    {
+        Graphics layer(page.waterLayer);
+        layer.SetSmoothingMode(SmoothingModeAntiAlias);
+        layer.SetPixelOffsetMode(PixelOffsetModeHalf);
+        layer.Clear(Color(static_cast<BYTE>(page.dark ? 34 : 44), 255, 178, 26));
+        const double level = water.Level();
+        if (level < water_fill::kHeight) {
+            PointF surface[water_fill::kColumns];
+            for (int column = 0; column < water_fill::kColumns; ++column) {
+                surface[column] = PointF(static_cast<REAL>(water_fill::Simulation::ColumnX(column)) * unit,
+                    static_cast<REAL>(water.SurfaceY(column)) * unit);
+            }
+            const REAL right = static_cast<REAL>(page.waterLayer->GetWidth()) + 2.0f;
+            const REAL bottom = static_cast<REAL>(page.waterLayer->GetHeight()) + 2.0f;
+            GraphicsPath body;
+            body.AddCurve(surface, water_fill::kColumns, 0.5f);
+            body.AddLine(surface[water_fill::kColumns - 1], PointF(right, bottom));
+            body.AddLine(PointF(right, bottom), PointF(-2.0f, bottom));
+            body.CloseFigure();
+            LinearGradientBrush depth(PointF(0.0f, static_cast<REAL>(level - 4.5) * unit), PointF(0.0f, bottom),
+                Color(255, 255, 201, 72), Color(255, 240, 148, 6));
+            depth.SetWrapMode(WrapModeTileFlipXY);
+            layer.FillPath(&depth, &body);
+            Pen crest(Color(static_cast<BYTE>(page.dark ? 230 : 210), 255, 236, 178), 1.4f * device);
+            layer.DrawCurve(&crest, surface, water_fill::kColumns, 0.5f);
+            Pen rim(Color(120, 255, 255, 255), device);
+            SolidBrush shine(Color(150, 255, 255, 255));
+            for (int index = 0; index < water_fill::kMaxBubbles; ++index) {
+                const water_fill::Bubble& bubble = water.BubbleAt(index);
+                if (!bubble.live) continue;
+                const REAL radius = static_cast<REAL>(water.BubbleRadius(bubble)) * unit;
+                const REAL x = static_cast<REAL>(water_fill::Simulation::BubbleX(bubble)) * unit;
+                const REAL y = static_cast<REAL>(bubble.y) * unit;
+                layer.DrawEllipse(&rim, x - radius, y - radius, 2.0f * radius, 2.0f * radius);
+                const REAL glint = radius * 0.32f;
+                layer.FillEllipse(&shine, x - radius * 0.45f - glint, y - radius * 0.45f - glint, 2.0f * glint, 2.0f * glint);
+            }
+        }
+    }
+    GraphicsPath vessel(FillModeWinding);
+    for (const water_fill::RoundedRect& rect : water_fill::kVessel) AddRoundedRect(vessel, rect);
+    TextureBrush fill(page.waterLayer, WrapModeClamp);
+    fill.TranslateTransform(kMarkLeft, kMarkTop);
+    fill.ScaleTransform(1.0f / device, 1.0f / device);
+    graphics.FillPath(&fill, &vessel);
+    GraphicsPath cursor;
+    AddRoundedRect(cursor, water_fill::kCursor);
+    const double blink = page.controlsVisible ? 1.0
+        : 0.5 + 0.5 * std::cos(static_cast<double>(now % 1100) / 1100.0 * 6.283185307179586);
+    const BYTE alpha = static_cast<BYTE>(90.0 + 165.0 * blink);
+    SolidBrush ink(page.dark ? Color(alpha, 244, 239, 228) : Color(alpha, 15, 17, 21));
+    graphics.FillPath(&ink, &cursor);
+}
+
+// The percentage under the mark, the installation stage below it, and the wordmark at the foot of the page.
+static void PaintLabels(Graphics& graphics, const ProgressPage& page, const WCHAR* number, const WCHAR* stage) {
+    StringFormat centered;
+    centered.SetAlignment(StringAlignmentCenter);
+    centered.SetLineAlignment(StringAlignmentCenter);
+    FontFamily display(page.displayFamily);
+    FontFamily text(page.textFamily);
+    SolidBrush strong(page.dark ? Color(255, 255, 255, 255) : Color(255, 15, 17, 21));
+    Font percent(&display, 44.0f, page.displayStyle, UnitPixel);
+    graphics.DrawString(number, -1, &percent, RectF(0.0f, 300.0f, 600.0f, 60.0f), &centered, &strong);
+    if (stage[0]) {
+        SolidBrush muted(page.dark ? Color(150, 255, 255, 255) : Color(140, 15, 17, 21));
+        Font caption(&text, 14.0f, FontStyleRegular, UnitPixel);
+        graphics.DrawString(stage, -1, &caption, RectF(48.0f, 362.0f, 504.0f, 24.0f), &centered, &muted);
+    }
+    StringFormat typographic(StringFormat::GenericTypographic());
+    Font name(&display, 17.0f, page.displayStyle, UnitPixel);
+    Font product(&text, 17.0f, FontStyleRegular, UnitPixel);
+    RectF nameBounds, productBounds;
+    graphics.MeasureString(L"TTOken", -1, &name, PointF(0.0f, 0.0f), &typographic, &nameBounds);
+    graphics.MeasureString(L" Code", -1, &product, PointF(0.0f, 0.0f), &typographic, &productBounds);
+    const REAL left = 300.0f - (nameBounds.Width + productBounds.Width) / 2.0f;
+    SolidBrush faint(page.dark ? Color(125, 255, 255, 255) : Color(115, 15, 17, 21));
+    graphics.DrawString(L"TTOken", -1, &name, PointF(left, 552.0f), &typographic, &strong);
+    graphics.DrawString(L" Code", -1, &product, PointF(left + nameBounds.Width, 552.0f), &typographic, &faint);
+}
+
+// Splits "Extracting files… %d%%" into the stage text and the number format "%d%%".
+static void SplitCaption(const WCHAR* caption, WCHAR (&stage)[128], WCHAR (&number)[16]) {
+    const WCHAR* marker = wcsstr(caption, L"%d");
+    if (!marker) {
+        lstrcpynW(stage, caption, 128);
+        lstrcpynW(number, L"%d%%", 16);
+        return;
+    }
+    int length = static_cast<int>(marker - caption);
+    while (length > 0 && caption[length - 1] == L' ') --length;
+    lstrcpynW(stage, caption, std::min(length + 1, 128));
+    const WCHAR* end = marker + 2;
+    if (end[0] == L'%' && end[1] == L'%') end += 2;
+    lstrcpynW(number, marker, std::min(static_cast<int>(end - marker) + 1, 16));
+}
+
+// Copies the first installed family among `names` into `family`; false when none is installed.
+static bool FirstFamily(std::initializer_list<const WCHAR*> names, WCHAR (&family)[LF_FACESIZE]) {
+    for (const WCHAR* name : names) {
+        FontFamily candidate(name);
+        if (candidate.IsAvailable()) {
+            lstrcpynW(family, name, LF_FACESIZE);
+            return true;
+        }
+    }
+    return false;
 }
 
 static UINT CaptionCommand(const ProgressPage& page, LPARAM position) {
@@ -232,6 +391,7 @@ static void RequestFinish(HWND window, ProgressPage& page, bool launch) {
 
 static void RevealFinish(HWND window, ProgressPage& page) {
     page.controlsVisible = true;
+    page.water.Settle();
     KillTimer(window, 1);
     SetWindowTextW(window, L"");
     InvalidateRect(window, nullptr, FALSE);
@@ -257,11 +417,14 @@ static LRESULT DrawFinishControl(const ProgressPage& page, NMCUSTOMDRAW& draw) {
     RECT rect; GetClientRect(control, &rect);
     HDC dc = draw.hdc;
     const int saved = SaveDC(dc);
+    // TTOken Code: the page background is not flat, so start from the page pixels under this control.
+    POINT origin{0, 0};
+    MapWindowPoints(control, GetParent(control), &origin, 1);
+    BitBlt(dc, 0, 0, rect.right, rect.bottom, page.bufferDc, origin.x, origin.y, SRCCOPY);
     {
         Graphics graphics(dc);
         graphics.ScaleTransform(page.dpi / 96.0f, page.dpi / 96.0f);
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        graphics.Clear(background);
         const bool checked = checkbox && SendMessageW(control, BM_GETCHECK, 0, 0) == BST_CHECKED;
         Color fill = primary ? accent : background;
         if (primary && (hot || pressed)) {
@@ -376,32 +539,34 @@ static LRESULT CALLBACK ProgressProc(HWND window, UINT message, WPARAM wparam, L
         const bool printing = message == WM_PRINTCLIENT;
         HDC dc = printing ? reinterpret_cast<HDC>(wparam) : BeginPaint(window, &paint);
         if (printing) GetClientRect(window, &paint.rcPaint);
+        // TTOken Code: every frame starts from the cached backdrop, then draws the filling mark and its labels.
+        GdiFlush();
+        std::memcpy(page->pixels, page->backdrop, page->pixelBytes);
         {
             Graphics graphics(page->buffer);
             graphics.ScaleTransform(page->dpi / 96.0f, page->dpi / 96.0f);
             graphics.SetSmoothingMode(SmoothingModeAntiAlias);
             graphics.SetPixelOffsetMode(PixelOffsetModeHalf);
             PaintCaptionButtons(graphics, *page);
-            SolidBrush background(page->dark ? Color(255, 21, 21, 23) : Color(255, 255, 255, 255));
-            graphics.FillRectangle(&background, 48, 480, 504, 56);
+            const ULONGLONG now = GetTickCount64();
             if (!page->controlsVisible) {
                 const int stage = static_cast<int>(reinterpret_cast<INT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.Stage")));
                 const double fraction = reinterpret_cast<UINT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.ExtractProgress")) / 100.0;
-                page->progress.Advance(stage, fraction, GetTickCount64());
-                const int percent = static_cast<int>(page->progress.value);
-                SolidBrush track(page->dark ? Color(255, 97, 102, 107) : Color(255, 233, 236, 242));
-                SolidBrush ink(page->dark ? Color(255, 255, 255, 255) : Color(255, 15, 17, 21));
-                FillProgress(graphics, track, 472.0f);
-                FillProgress(graphics, ink, 472.0f * static_cast<REAL>(page->progress.value) / 100);
-                FontFamily family(L"Microsoft YaHei UI");
-                Font font(&family, 14, FontStyleRegular, UnitPixel);
-                StringFormat centered;
-                centered.SetAlignment(StringAlignmentCenter);
-                centered.SetLineAlignment(StringAlignmentCenter);
+                page->progress.Advance(stage, fraction, now);
+                const double elapsed = page->lastFrame ? static_cast<double>(now - page->lastFrame) / 1000.0 : 0.0;
+                page->water.Advance(elapsed, page->progress.value / 100.0);
+            }
+            page->lastFrame = now;
+            PaintMark(graphics, *page, now);
+            const int percent = static_cast<int>(page->progress.value);
+            const int captionStage = page->progress.CaptionStage();
+            WCHAR number[32];
+            wsprintfW(number, page->numbers[captionStage], percent);
+            PaintLabels(graphics, *page, number, page->controlsVisible ? L"" : page->stages[captionStage]);
+            if (!page->controlsVisible) {
                 WCHAR caption[160];
-                wsprintfW(caption, page->captions[page->progress.CaptionStage()], percent);
+                wsprintfW(caption, page->captions[captionStage], percent);
                 SetWindowTextW(window, caption);
-                graphics.DrawString(caption, -1, &font, RectF(48, 512, 504, 22), &centered, &ink);
             }
         }
         BitBlt(dc, paint.rcPaint.left, paint.rcPaint.top,
@@ -462,18 +627,34 @@ extern "C" __declspec(dllexport) HWND __cdecl InstallerShowProgress(HWND parent,
     page->buffer = new Bitmap(size, size, size * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pixels));
     if (!page->buffer || page->buffer->GetLastStatus() != Ok) { delete page; return nullptr; }
     {
-        // Static artwork stays in the buffer for this page's lifetime.
+        // TTOken Code: the backdrop is painted once; every frame copies it before drawing the mark and labels.
         Graphics graphics(page->buffer);
         graphics.ScaleTransform(dpi / 96.0f, dpi / 96.0f);
-        graphics.Clear(page->dark ? Color(255, 21, 21, 23) : Color(255, 255, 255, 255));
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-        graphics.SetPixelOffsetMode(PixelOffsetModeHalf);
-        graphics.DrawImage(page->brand, Rect(0, 174, 600, 196));
+        PaintBackdrop(graphics, page->dark);
         PaintCaptionButtons(graphics, *page);
     }
+    // The wordmark bitmap still validates the installer resources; the page draws the mark and text itself.
     delete page->brand;
     page->brand = nullptr;
+    GdiFlush();
+    page->pixels = static_cast<BYTE*>(pixels);
+    page->pixelBytes = static_cast<size_t>(size) * static_cast<size_t>(size) * 4;
+    page->backdrop = new (std::nothrow) BYTE[page->pixelBytes];
+    if (!page->backdrop) { delete page; return nullptr; }
+    std::memcpy(page->backdrop, page->pixels, page->pixelBytes);
+    const REAL unit = kMarkScale * static_cast<REAL>(dpi) / 96.0f;
+    page->waterLayer = new Bitmap(static_cast<INT>(std::ceil(water_fill::kWidth * unit)) + 2,
+        static_cast<INT>(std::ceil(water_fill::kHeight * unit)) + 2, PixelFormat32bppPARGB);
+    if (!page->waterLayer || page->waterLayer->GetLastStatus() != Ok) { delete page; return nullptr; }
+    for (int i = 0; i < 5; ++i) SplitCaption(page->captions[i], page->stages[i], page->numbers[i]);
+    if (FirstFamily({L"Segoe UI Semibold"}, page->displayFamily)) {
+        page->displayStyle = FontStyleRegular;
+    } else {
+        FirstFamily({L"Segoe UI", L"Tahoma", L"Arial", L"DejaVu Sans"}, page->displayFamily);
+        page->displayStyle = FontStyleBold;
+    }
+    FirstFamily({L"Microsoft YaHei UI", L"Segoe UI", L"Tahoma", L"Arial", L"DejaVu Sans"}, page->textFamily);
     HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, type.lpszClassName, L"", WS_CHILD | WS_CLIPCHILDREN,
         0, 0, MulDiv(600, dpi, 96), MulDiv(600, dpi, 96), parent, nullptr, module, page);
     if (!window) { delete page; return nullptr; }

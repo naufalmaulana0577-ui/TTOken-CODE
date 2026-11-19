@@ -575,6 +575,11 @@ editFile({
   path: 'apps/desktop/package.json',
   pairs: [[`"name": "${upstream.publisher}"`, `"name": "${brand.publisher}"`]],
 })
+editFile({
+  name: 'penerbit (uji metadata installer)',
+  path: 'apps/desktop/tests/installer-packaging.spec.ts',
+  pairs: [[`expect(appInfo.companyName).toBe('${upstream.publisher}')`, `expect(appInfo.companyName).toBe('${brand.publisher}')`]],
+})
 replaceTokens({
   name: 'kunci-registry',
   scopes: ['apps/desktop'],
@@ -1166,6 +1171,24 @@ function forgePart(path) {
  */
 function devicePart(path) {
   return readFileSync(join(ROOT, 'ttoken', 'device', path), 'utf8')
+}
+
+/**
+ * Baca berkas sumber aplikasi desktop dari `ttoken/desktop/`.
+ * @param path Path relatif terhadap `ttoken/desktop/`.
+ * @returns Isi berkas.
+ */
+function desktopPart(path) {
+  return readFileSync(join(ROOT, 'ttoken', 'desktop', path), 'utf8')
+}
+
+/**
+ * Baca berkas sumber installer dari `ttoken/installer/`.
+ * @param path Path relatif terhadap `ttoken/installer/`.
+ * @returns Isi berkas.
+ */
+function installerPart(path) {
+  return readFileSync(join(ROOT, 'ttoken', 'installer', path), 'utf8')
 }
 
 /** Potongan lockfile untuk paket perangkat Android, dihasilkan pnpm (lihat aturan 27). */
@@ -1860,6 +1883,141 @@ editFile({
         + `function barePackageName(specifier: string): string {\n`,
     ],
   ],
+})
+
+// 29. Installer menawarkan menutup TTOken Code yang masih berjalan, bukan
+//      hanya menyuruh keluar dari system tray. OK: installer menjalankan
+//      aplikasi dengan --quit-for-installer (build baru keluar rapi tanpa
+//      konfirmasi kedua), menunggu sampai 5 detik, lalu menutup paksa sisa
+//      proses TTOken Code.exe. Cancel dan mode senyap tetap membiarkannya
+//      berjalan. Berlaku juga untuk uninstaller.
+editFile({
+  name: 'installer menutup aplikasi (single instance)',
+  path: 'apps/desktop/src/single-instance.ts',
+  pairs: [[desktopPart('single-instance.orig.ts.part'), desktopPart('single-instance.ts.part')]],
+})
+editFile({
+  name: 'installer menutup aplikasi (uji single instance)',
+  path: 'apps/desktop/tests/single-instance.spec.ts',
+  pairs: [[desktopPart('single-instance.orig.spec.ts.part'), desktopPart('single-instance.spec.ts.part')]],
+})
+editFile({
+  name: 'installer menutup aplikasi (main)',
+  path: 'apps/desktop/src/main.ts',
+  pairs: [[
+    `const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })\n`,
+    `const ownsDesktopInstance = claimDesktopSingleInstance(app, process.argv, () => { focusPrimaryWindow() }, () => {\n`
+      + `  quitWithoutConfirmation()\n})\n`,
+  ]],
+})
+editFile({
+  name: 'installer menutup aplikasi (NSIS)',
+  path: 'apps/desktop/scripts/installer.nsh',
+  pairs: [
+    [desktopPart('check-app-running.orig.nsh.part'), desktopPart('check-app-running.nsh.part')],
+    [`!macro customCheckAppRunning\n`, desktopPart('wait-app-exit.nsh.part') + `\n!macro customCheckAppRunning\n`],
+  ],
+})
+for (const [path, from, to] of [
+    ['apps/desktop/installer/locales/en_US.json', `    "INSTALLER_RUNNING": "TTOken Code is running. Quit it from the system tray and try again.",
+`, `    "INSTALLER_RUNNING": "TTOken Code is running. Quit it from the system tray and try again.",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code is still running. Close it and continue? Running tasks will be interrupted.",\n`],
+    ['apps/desktop/installer/locales/de_DE.json', `    "INSTALLER_RUNNING": "TTOken Code läuft. Beenden Sie es über die Taskleiste und versuchen Sie es erneut.",
+`, `    "INSTALLER_RUNNING": "TTOken Code läuft. Beenden Sie es über die Taskleiste und versuchen Sie es erneut.",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code läuft noch. Schließen und fortfahren? Laufende Aufgaben werden unterbrochen.",\n`],
+    ['apps/desktop/installer/locales/es_ES.json', `    "INSTALLER_RUNNING": "TTOken Code se está ejecutando. Salga de la bandeja del sistema y vuelva a intentarlo.",
+`, `    "INSTALLER_RUNNING": "TTOken Code se está ejecutando. Salga de la bandeja del sistema y vuelva a intentarlo.",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code sigue en ejecución. ¿Cerrarlo y continuar? Las tareas en curso se interrumpirán.",\n`],
+    ['apps/desktop/installer/locales/fr_FR.json', `    "INSTALLER_RUNNING": "TTOken Code est en cours d'exécution. Quittez-le de la barre d'état système et réessayez.",
+`, `    "INSTALLER_RUNNING": "TTOken Code est en cours d'exécution. Quittez-le de la barre d'état système et réessayez.",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code est toujours en cours d'exécution. Le fermer et continuer ? Les tâches en cours seront interrompues.",\n`],
+    ['apps/desktop/installer/locales/ja_JP.json', `    "INSTALLER_RUNNING": "TTOken Code が実行中です。システムトレイから終了して再試行してください。",
+`, `    "INSTALLER_RUNNING": "TTOken Code が実行中です。システムトレイから終了して再試行してください。",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code はまだ実行中です。終了して続行しますか？実行中のタスクは中断されます。",\n`],
+    ['apps/desktop/installer/locales/pt_BR.json', `    "INSTALLER_RUNNING": "TTOken Code está em execução. Saia da bandeja do sistema e tente novamente.",
+`, `    "INSTALLER_RUNNING": "TTOken Code está em execução. Saia da bandeja do sistema e tente novamente.",
+    "INSTALLER_RUNNING_CLOSE": "O TTOken Code ainda está em execução. Fechar e continuar? As tarefas em andamento serão interrompidas.",\n`],
+    ['apps/desktop/installer/locales/ru_RU.json', `    "INSTALLER_RUNNING": "TTOken Code работает. Закройте его из системного трея и повторите попытку.",
+`, `    "INSTALLER_RUNNING": "TTOken Code работает. Закройте его из системного трея и повторите попытку.",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code всё ещё работает. Закрыть его и продолжить? Выполняемые задачи будут прерваны.",\n`],
+    ['apps/desktop/installer/locales/zh_CN.json', `    "INSTALLER_RUNNING": "TTOken Code 正在运行，请先在系统托盘中退出应用后重试。",
+`, `    "INSTALLER_RUNNING": "TTOken Code 正在运行，请先在系统托盘中退出应用后重试。",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code 仍在运行。是否关闭并继续？正在运行的任务将被中断。",\n`],
+]) editFile({ name: `installer menutup aplikasi (${path.split('/').pop()})`, path, pairs: [[from, to]] })
+editFile({
+  name: 'installer menutup aplikasi (uji locale)',
+  path: 'apps/desktop/tests/installer-locales.spec.ts',
+  pairs: [[
+    `  expect(source.match(/^LangString /gmu)).toHaveLength(256)\n`,
+    `  expect(source.match(/^LangString /gmu)).toHaveLength(264)\n`,
+  ]],
+})
+editFile({
+  name: 'installer menutup aplikasi (uji smoke Windows)',
+  path: 'apps/desktop/tests/windows-installer-smoke.ps1',
+  pairs: [
+    [`        [void](Wait-Control $Setup $copy.INSTALLER_RUNNING -Dialog)\n`,
+      `        [void](Wait-Control $Setup $copy.INSTALLER_RUNNING_CLOSE -Dialog)\n`],
+    [`        Dismiss $Setup $copy.INSTALLER_RUNNING\n`, `        Dismiss $Setup $copy.INSTALLER_RUNNING_CLOSE\n`],
+  ],
+})
+editFile({
+  name: 'installer menutup aplikasi (README desktop)',
+  path: 'apps/desktop/README.md',
+  pairs: [[`The Windows installer and uninstaller tell a user whose application is still running to quit it from the system tray.`, `When the application is still running, the Windows installer and uninstaller offer to close it. OK launches the installed executable with \`--quit-for-installer\`, which makes the running instance quit without this confirmation because the installer prompt already warned that running tasks stop; after five seconds the installer ends the remaining application processes, and if they still run it tells the user to quit from the system tray. Cancel and silent runs keep the application running.`]],
+})
+editFile({
+  name: 'installer menutup aplikasi (README desktop zh)',
+  path: 'apps/desktop/README.zh.md',
+  pairs: [[`Windows 安装程序和卸载程序在应用仍在运行时提示用户先在系统托盘中退出。`, `应用仍在运行时，Windows 安装程序和卸载程序会提供关闭它的选项。点击“确定”后，安装程序以 \`--quit-for-installer\` 启动已安装的可执行文件，正在运行的实例跳过此确认直接退出，因为安装程序的提示已说明运行中的任务会停止；五秒后安装程序结束剩余的应用进程，若仍未退出，则提示用户先在系统托盘中退出。点击“取消”或静默运行时应用保持运行。`]],
+})
+editFile({
+  name: 'installer menutup aplikasi (README packaging)',
+  path: 'apps/desktop/packaging/README.md',
+  pairs: [[`A running application blocks installation; update launches allow up to ten seconds for it to exit.`, `A running application blocks installation until the user lets the installer close it or quits it; update launches allow up to ten seconds for it to exit, and silent runs never close it.`]],
+})
+editFile({
+  name: 'installer menutup aplikasi (README packaging zh)',
+  path: 'apps/desktop/packaging/README.zh.md',
+  pairs: [[`运行中的应用会阻止安装；更新启动允许等待应用退出，最长十秒。`, `运行中的应用会阻止安装，直到用户允许安装器关闭它或自行退出；更新启动允许等待应用退出，最长十秒；静默运行从不关闭应用。`]],
+})
+editFile({
+  name: 'installer menutup aplikasi (pasangan terjemahan README)',
+  path: 'apps/desktop/README.i18n.yaml',
+  pairs: [[`  en: bb35a022c37955c9\n  zh: ab2ef22d398d83a0\n`, `  en: cc9a70f0738cdf10\n  zh: c00a597e8f58f1db\n`]],
+})
+editFile({
+  name: 'installer menutup aplikasi (pasangan terjemahan README packaging)',
+  path: 'apps/desktop/packaging/README.i18n.yaml',
+  pairs: [[`  en: da4669b98c79ee48\n  zh: d007e87f13ff54d3\n`, `  en: 4c17203db1ddf72b\n  zh: bb8e597cee8c7f94\n`]],
+})
+
+// 30. Layar progres installer: logo TTOken terisi air sedikit demi sedikit
+//      (volume mengikuti bentuk T, gelombang permukaan, gelembung naik),
+//      persentase besar di bawahnya, tahap instalasi, dan wordmark kecil di kaki
+//      halaman. Latar tidak lagi polos: gradasi hangat dan cahaya kunyit di
+//      belakang logo; pita tombol judul tetap rata. Sumber di ttoken/installer/.
+writeGenerated('installer air (fisika)', 'apps/desktop/installer/water-fill.h', installerPart('water-fill.h'))
+editFile({
+  name: 'installer air (halaman progres)',
+  path: 'apps/desktop/installer/window-frame.cpp',
+  pairs: ['includes', 'progress-header', 'page', 'helpers', 'reveal', 'finish-control', 'paint', 'show']
+    .map(part => [installerPart(`window-frame/${part}.orig.part`), installerPart(`window-frame/${part}.part`)]),
+})
+editFile({
+  name: 'installer air (README desktop)',
+  path: 'apps/desktop/README.md',
+  pairs: [[`The progress page keeps one opaque pixel buffer for its lifetime, draws static artwork once, and copies repainted pixels with GDI.`, `The progress page keeps one opaque pixel buffer and a copy of its static backdrop for its lifetime; every frame restores the backdrop, draws the water-filled mark, the percentage and the stage, and copies repainted pixels with GDI.`]],
+})
+editFile({
+  name: 'installer air (README desktop zh)',
+  path: 'apps/desktop/README.zh.md',
+  pairs: [[`进度页在其生命周期内保留一个不透明像素缓冲，只绘制一次静态图像，并通过 GDI 复制重绘的像素。`, `进度页在其生命周期内保留一个不透明像素缓冲和一份静态背景副本；每一帧先恢复背景，再绘制注水的标志、百分比和当前阶段，并通过 GDI 复制重绘的像素。`]],
+})
+editFile({
+  name: 'installer air (pasangan terjemahan README)',
+  path: 'apps/desktop/README.i18n.yaml',
+  pairs: [[`  en: eb9d30bca4134f80\n  zh: bf201d18ae5ba697\n`, `  en: f8c4a4dde188a0fd\n  zh: afc80c7f54135cd8\n`]],
 })
 
 // 25. Diff: baris yang ditambah blok hijau, yang dihapus blok merah. Teks kode

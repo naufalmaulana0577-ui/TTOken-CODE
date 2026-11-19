@@ -1,0 +1,22 @@
+    bool controlsVisible = false;
+    int finishChoice = -1;
+    HFONT finishFont, launchFont;
+    // TTOken Code: water in the mark, the backdrop copied under every frame, and the split progress captions.
+    water_fill::Simulation water;
+    ULONGLONG lastFrame = 0;
+    Bitmap* waterLayer = nullptr;
+    BYTE* pixels = nullptr;
+    BYTE* backdrop = nullptr;
+    size_t pixelBytes = 0;
+    WCHAR stages[5][128];
+    WCHAR numbers[5][16];
+    WCHAR displayFamily[LF_FACESIZE];
+    WCHAR textFamily[LF_FACESIZE];
+    INT displayStyle = FontStyleRegular;
+
+    ~ProgressPage() {
+        if (finishFont) DeleteObject(finishFont);
+        if (launchFont) DeleteObject(launchFont);
+        delete waterLayer;
+        delete[] backdrop;
+        delete buffer;

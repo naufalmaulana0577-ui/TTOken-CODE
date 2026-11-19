@@ -17,6 +17,7 @@
     "INSTALLER_THEME_ERROR": "主题参数须为 /THEME=auto、/THEME=light 或 /THEME=dark。",
     "INSTALLER_FAILED": "安装未完成，请关闭安装程序后重试。如仍然失败，请重新下载安装包。",
     "INSTALLER_RUNNING": "TTOken Code 正在运行，请先在系统托盘中退出应用后重试。",
+    "INSTALLER_RUNNING_CLOSE": "TTOken Code 仍在运行。是否关闭并继续？正在运行的任务将被中断。",
     "INSTALLER_DIRECTORY_FAILED": "无法替换安装目录。",
     "INSTALLER_DIRECTORY_HINT": "请检查安装目录的访问权限，关闭占用其中内容的程序后重新运行安装器。如仍失败，请复制错误详情。",
     "INSTALLER_DIRECTORY_RESTORE_HINT": "未能恢复原安装目录。请保留错误详情中列出的备份目录，联系支持人员后再安装。",

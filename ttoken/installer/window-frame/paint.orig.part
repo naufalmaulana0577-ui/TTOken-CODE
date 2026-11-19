@@ -1,0 +1,28 @@
+        {
+            Graphics graphics(page->buffer);
+            graphics.ScaleTransform(page->dpi / 96.0f, page->dpi / 96.0f);
+            graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+            graphics.SetPixelOffsetMode(PixelOffsetModeHalf);
+            PaintCaptionButtons(graphics, *page);
+            SolidBrush background(page->dark ? Color(255, 21, 21, 23) : Color(255, 255, 255, 255));
+            graphics.FillRectangle(&background, 48, 480, 504, 56);
+            if (!page->controlsVisible) {
+                const int stage = static_cast<int>(reinterpret_cast<INT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.Stage")));
+                const double fraction = reinterpret_cast<UINT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.ExtractProgress")) / 100.0;
+                page->progress.Advance(stage, fraction, GetTickCount64());
+                const int percent = static_cast<int>(page->progress.value);
+                SolidBrush track(page->dark ? Color(255, 97, 102, 107) : Color(255, 233, 236, 242));
+                SolidBrush ink(page->dark ? Color(255, 255, 255, 255) : Color(255, 15, 17, 21));
+                FillProgress(graphics, track, 472.0f);
+                FillProgress(graphics, ink, 472.0f * static_cast<REAL>(page->progress.value) / 100);
+                FontFamily family(L"Microsoft YaHei UI");
+                Font font(&family, 14, FontStyleRegular, UnitPixel);
+                StringFormat centered;
+                centered.SetAlignment(StringAlignmentCenter);
+                centered.SetLineAlignment(StringAlignmentCenter);
+                WCHAR caption[160];
+                wsprintfW(caption, page->captions[page->progress.CaptionStage()], percent);
+                SetWindowTextW(window, caption);
+                graphics.DrawString(caption, -1, &font, RectF(48, 512, 504, 22), &centered, &ink);
+            }
+        }

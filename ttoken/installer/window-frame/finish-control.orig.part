@@ -1,0 +1,6 @@
+    const int saved = SaveDC(dc);
+    {
+        Graphics graphics(dc);
+        graphics.ScaleTransform(page.dpi / 96.0f, page.dpi / 96.0f);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        graphics.Clear(background);

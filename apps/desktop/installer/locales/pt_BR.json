@@ -17,6 +17,7 @@
     "INSTALLER_THEME_ERROR": "Use /THEME=auto, /THEME=light ou /THEME=dark.",
     "INSTALLER_FAILED": "A instalação não foi concluída. Feche este instalador e tente novamente. Se o problema persistir, baixe o instalador novamente.",
     "INSTALLER_RUNNING": "TTOken Code está em execução. Saia da bandeja do sistema e tente novamente.",
+    "INSTALLER_RUNNING_CLOSE": "O TTOken Code ainda está em execução. Fechar e continuar? As tarefas em andamento serão interrompidas.",
     "INSTALLER_DIRECTORY_FAILED": "O diretório de instalação não pôde ser substituído.",
     "INSTALLER_DIRECTORY_HINT": "Verifique o acesso ao diretório de instalação e feche os programas usando seus arquivos e execute o instalador novamente. Copie os detalhes do erro se o problema persistir.",
     "INSTALLER_DIRECTORY_RESTORE_HINT": "A instalação anterior não pôde ser restaurada. Mantenha o diretório de backup mostrado nos detalhes do erro e entre em contato com o suporte antes de instalar novamente.",

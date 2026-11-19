@@ -1,0 +1,3 @@
+static void RevealFinish(HWND window, ProgressPage& page) {
+    page.controlsVisible = true;
+    page.water.Settle();

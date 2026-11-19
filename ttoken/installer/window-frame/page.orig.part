@@ -1,0 +1,8 @@
+    bool controlsVisible = false;
+    int finishChoice = -1;
+    HFONT finishFont, launchFont;
+
+    ~ProgressPage() {
+        if (finishFont) DeleteObject(finishFont);
+        if (launchFont) DeleteObject(launchFont);
+        delete buffer;

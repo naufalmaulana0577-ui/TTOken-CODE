@@ -1,0 +1,29 @@
+    {
+        // TTOken Code: the backdrop is painted once; every frame copies it before drawing the mark and labels.
+        Graphics graphics(page->buffer);
+        graphics.ScaleTransform(dpi / 96.0f, dpi / 96.0f);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        PaintBackdrop(graphics, page->dark);
+        PaintCaptionButtons(graphics, *page);
+    }
+    // The wordmark bitmap still validates the installer resources; the page draws the mark and text itself.
+    delete page->brand;
+    page->brand = nullptr;
+    GdiFlush();
+    page->pixels = static_cast<BYTE*>(pixels);
+    page->pixelBytes = static_cast<size_t>(size) * static_cast<size_t>(size) * 4;
+    page->backdrop = new (std::nothrow) BYTE[page->pixelBytes];
+    if (!page->backdrop) { delete page; return nullptr; }
+    std::memcpy(page->backdrop, page->pixels, page->pixelBytes);
+    const REAL unit = kMarkScale * static_cast<REAL>(dpi) / 96.0f;
+    page->waterLayer = new Bitmap(static_cast<INT>(std::ceil(water_fill::kWidth * unit)) + 2,
+        static_cast<INT>(std::ceil(water_fill::kHeight * unit)) + 2, PixelFormat32bppPARGB);
+    if (!page->waterLayer || page->waterLayer->GetLastStatus() != Ok) { delete page; return nullptr; }
+    for (int i = 0; i < 5; ++i) SplitCaption(page->captions[i], page->stages[i], page->numbers[i]);
+    if (FirstFamily({L"Segoe UI Semibold"}, page->displayFamily)) {
+        page->displayStyle = FontStyleRegular;
+    } else {
+        FirstFamily({L"Segoe UI", L"Tahoma", L"Arial", L"DejaVu Sans"}, page->displayFamily);
+        page->displayStyle = FontStyleBold;
+    }
+    FirstFamily({L"Microsoft YaHei UI", L"Segoe UI", L"Tahoma", L"Arial", L"DejaVu Sans"}, page->textFamily);

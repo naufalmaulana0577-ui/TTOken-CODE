@@ -171,6 +171,19 @@ ManifestDPIAware true
   Pop $0
 !macroend
 
+; TTOken Code: wait up to Steps times 250 ms for the installed application to exit; $R0 keeps the last result.
+!macro ttokenWaitForAppExit Steps
+  StrCpy $R1 0
+  ${DoWhile} $R0 == 0
+    Sleep 250
+    System::Call '$PLUGINSDIR\window-frame.dll::InstallerFindProcess(w "$INSTDIR\${APP_EXECUTABLE_FILENAME}") i.R0 ?c'
+    IntOp $R1 $R1 + 1
+    ${If} $R1 >= ${Steps}
+      ${ExitDo}
+    ${EndIf}
+  ${Loop}
+!macroend
+
 !macro customCheckAppRunning
   !ifdef BUILD_UNINSTALLER
     InitPluginsDir
@@ -179,15 +192,23 @@ ManifestDPIAware true
   System::Call '$PLUGINSDIR\window-frame.dll::InstallerFindProcess(w "$INSTDIR\${APP_EXECUTABLE_FILENAME}") i.R0 ?c'
   ${If} $R0 == 0
     ${If} ${isUpdated}
-      StrCpy $R1 0
-      ${DoWhile} $R0 == 0
-        Sleep 250
-        System::Call '$PLUGINSDIR\window-frame.dll::InstallerFindProcess(w "$INSTDIR\${APP_EXECUTABLE_FILENAME}") i.R0 ?c'
-        IntOp $R1 $R1 + 1
-        ${If} $R1 >= 40
-          ${ExitDo}
+      !insertmacro ttokenWaitForAppExit 40
+    ${EndIf}
+    ; TTOken Code: offer to close the running application; Cancel and silent runs keep it running.
+    ${If} $R0 == 0
+      ${If} ${Cmd} `MessageBox MB_OKCANCEL|MB_ICONQUESTION "$(INSTALLER_RUNNING_CLOSE)" /SD IDCANCEL IDOK`
+        ; A build that handles --quit-for-installer quits cleanly; an older build only shows its window.
+        Exec '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --quit-for-installer'
+        !insertmacro ttokenWaitForAppExit 20
+        ${If} $R0 == 0
+          nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM "${APP_EXECUTABLE_FILENAME}"'
+          Pop $R1
+          !insertmacro ttokenWaitForAppExit 20
         ${EndIf}
-      ${Loop}
+      ${Else}
+        SetErrorLevel 2
+        Quit
+      ${EndIf}
     ${EndIf}
     ${If} $R0 == 0
       MessageBox MB_OK|MB_ICONINFORMATION "$(INSTALLER_RUNNING)" /SD IDOK

@@ -1,0 +1,30 @@
+        // TTOken Code: every frame starts from the cached backdrop, then draws the filling mark and its labels.
+        GdiFlush();
+        std::memcpy(page->pixels, page->backdrop, page->pixelBytes);
+        {
+            Graphics graphics(page->buffer);
+            graphics.ScaleTransform(page->dpi / 96.0f, page->dpi / 96.0f);
+            graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+            graphics.SetPixelOffsetMode(PixelOffsetModeHalf);
+            PaintCaptionButtons(graphics, *page);
+            const ULONGLONG now = GetTickCount64();
+            if (!page->controlsVisible) {
+                const int stage = static_cast<int>(reinterpret_cast<INT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.Stage")));
+                const double fraction = reinterpret_cast<UINT_PTR>(GetPropW(GetParent(window), L"HarnessInstaller.ExtractProgress")) / 100.0;
+                page->progress.Advance(stage, fraction, now);
+                const double elapsed = page->lastFrame ? static_cast<double>(now - page->lastFrame) / 1000.0 : 0.0;
+                page->water.Advance(elapsed, page->progress.value / 100.0);
+            }
+            page->lastFrame = now;
+            PaintMark(graphics, *page, now);
+            const int percent = static_cast<int>(page->progress.value);
+            const int captionStage = page->progress.CaptionStage();
+            WCHAR number[32];
+            wsprintfW(number, page->numbers[captionStage], percent);
+            PaintLabels(graphics, *page, number, page->controlsVisible ? L"" : page->stages[captionStage]);
+            if (!page->controlsVisible) {
+                WCHAR caption[160];
+                wsprintfW(caption, page->captions[captionStage], percent);
+                SetWindowTextW(window, caption);
+            }
+        }

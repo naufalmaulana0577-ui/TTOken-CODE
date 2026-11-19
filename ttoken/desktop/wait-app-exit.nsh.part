@@ -1,0 +1,12 @@
+; TTOken Code: wait up to Steps times 250 ms for the installed application to exit; $R0 keeps the last result.
+!macro ttokenWaitForAppExit Steps
+  StrCpy $R1 0
+  ${DoWhile} $R0 == 0
+    Sleep 250
+    System::Call '$PLUGINSDIR\window-frame.dll::InstallerFindProcess(w "$INSTDIR\${APP_EXECUTABLE_FILENAME}") i.R0 ?c'
+    IntOp $R1 $R1 + 1
+    ${If} $R1 >= ${Steps}
+      ${ExitDo}
+    ${EndIf}
+  ${Loop}
+!macroend

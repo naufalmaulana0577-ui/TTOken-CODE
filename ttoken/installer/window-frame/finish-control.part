@@ -1,0 +1,9 @@
+    const int saved = SaveDC(dc);
+    // TTOken Code: the page background is not flat, so start from the page pixels under this control.
+    POINT origin{0, 0};
+    MapWindowPoints(control, GetParent(control), &origin, 1);
+    BitBlt(dc, 0, 0, rect.right, rect.bottom, page.bufferDc, origin.x, origin.y, SRCCOPY);
+    {
+        Graphics graphics(dc);
+        graphics.ScaleTransform(page.dpi / 96.0f, page.dpi / 96.0f);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);

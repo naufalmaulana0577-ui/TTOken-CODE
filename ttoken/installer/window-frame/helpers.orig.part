@@ -1,0 +1,11 @@
+static void FillProgress(Graphics& graphics, Brush& brush, REAL width) {
+    if (width <= 0) return;
+    if (width < 4) { graphics.FillRectangle(&brush, 64.0f, 482.0f, width, 6.0f); return; }
+    GraphicsPath path;
+    path.AddArc(64.0f, 482.0f, 4.0f, 4.0f, 180.0f, 90.0f);
+    path.AddArc(64.0f + width - 4, 482.0f, 4.0f, 4.0f, 270.0f, 90.0f);
+    path.AddArc(64.0f + width - 4, 484.0f, 4.0f, 4.0f, 0.0f, 90.0f);
+    path.AddArc(64.0f, 484.0f, 4.0f, 4.0f, 90.0f, 90.0f);
+    path.CloseFigure();
+    graphics.FillPath(&brush, &path);
+}

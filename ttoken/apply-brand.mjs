@@ -1383,7 +1383,7 @@ const MODE_KEYS = ['mode.agent', 'mode.plan', 'mode.agent.note', 'mode.plan.note
 
 // 24c. Chip folder dan cabang Git di baris opsi composer. Cabang dibaca dari berkas
 //      HEAD lewat Remote workspaceFiles yang sudah ada, jadi tidak ada layanan Host baru.
-for (const file of ['TtokenChips.tsx', 'TtokenChips.module.css', 'install.ts', 'locales.ts']) {
+for (const file of ['TtokenChips.tsx', 'TtokenChips.module.css', 'TaskStatus.tsx', 'TaskStatus.module.css', 'install.ts', 'locales.ts']) {
   writeGenerated(`chip composer (${file})`, `packages/client/ui-conversation/src/client/ttoken/${file}`, clientPart(`composer/${file}`))
 }
 editFile({

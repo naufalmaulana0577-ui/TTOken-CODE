@@ -15,6 +15,15 @@ export const zh = {
   'steps.off': '不限步数',
   'steps.none': '不限',
   'steps.title': '每个任务的步数上限',
+  'task.label': '任务状态',
+  'task.product': 'Code',
+  'task.title': '智能体会话',
+  'task.titleIn': '智能体会话 · {folder}',
+  'task.running': '进行中 · {time}',
+  'task.seconds': '{n} 秒',
+  'task.minutes': '{n} 分钟',
+  'task.hours': '{h} 小时 {m} 分钟',
+  'task.hide': '隐藏任务状态',
 } satisfies Record<string, string>
 
 /** Composer chip copy keys. */
@@ -29,6 +38,15 @@ export const en = {
   'steps.off': 'No step limit',
   'steps.none': 'No limit',
   'steps.title': 'Step limit per task',
+  'task.label': 'Task status',
+  'task.product': 'Code',
+  'task.title': 'Agent session',
+  'task.titleIn': 'Agent session · {folder}',
+  'task.running': 'In progress · {time}',
+  'task.seconds': '{n}s',
+  'task.minutes': '{n}m',
+  'task.hours': '{h}h {m}m',
+  'task.hide': 'Hide task status',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Japanese dictionary. */
@@ -40,6 +58,15 @@ export const ja = {
   'steps.off': 'ステップ上限なし',
   'steps.none': '上限なし',
   'steps.title': 'タスクごとのステップ上限',
+  'task.label': 'タスクの状態',
+  'task.product': 'Code',
+  'task.title': 'エージェントのセッション',
+  'task.titleIn': 'エージェントのセッション · {folder}',
+  'task.running': '実行中 · {time}',
+  'task.seconds': '{n} 秒',
+  'task.minutes': '{n} 分',
+  'task.hours': '{h} 時間 {m} 分',
+  'task.hide': 'タスクの状態を隠す',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Spanish dictionary. */
@@ -51,6 +78,15 @@ export const es = {
   'steps.off': 'Sin límite de pasos',
   'steps.none': 'Sin límite',
   'steps.title': 'Límite de pasos por tarea',
+  'task.label': 'Estado de la tarea',
+  'task.product': 'Code',
+  'task.title': 'Sesión del agente',
+  'task.titleIn': 'Sesión del agente · {folder}',
+  'task.running': 'En curso · {time}',
+  'task.seconds': '{n} s',
+  'task.minutes': '{n} min',
+  'task.hours': '{h} h {m} min',
+  'task.hide': 'Ocultar el estado de la tarea',
 } satisfies Record<TtokenComposerKey, string>
 
 /** French dictionary. */
@@ -62,6 +98,15 @@ export const fr = {
   'steps.off': 'Pas de limite d’étapes',
   'steps.none': 'Aucune limite',
   'steps.title': 'Limite d’étapes par tâche',
+  'task.label': 'État de la tâche',
+  'task.product': 'Code',
+  'task.title': 'Session de l’agent',
+  'task.titleIn': 'Session de l’agent · {folder}',
+  'task.running': 'En cours · {time}',
+  'task.seconds': '{n} s',
+  'task.minutes': '{n} min',
+  'task.hours': '{h} h {m} min',
+  'task.hide': 'Masquer l’état de la tâche',
 } satisfies Record<TtokenComposerKey, string>
 
 /** German dictionary. */
@@ -73,6 +118,15 @@ export const de = {
   'steps.off': 'Kein Schrittlimit',
   'steps.none': 'Kein Limit',
   'steps.title': 'Schrittlimit pro Aufgabe',
+  'task.label': 'Aufgabenstatus',
+  'task.product': 'Code',
+  'task.title': 'Agentensitzung',
+  'task.titleIn': 'Agentensitzung · {folder}',
+  'task.running': 'Läuft · {time}',
+  'task.seconds': '{n} s',
+  'task.minutes': '{n} Min.',
+  'task.hours': '{h} Std. {m} Min.',
+  'task.hide': 'Aufgabenstatus ausblenden',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Russian dictionary. */
@@ -84,6 +138,15 @@ export const ru = {
   'steps.off': 'Без лимита шагов',
   'steps.none': 'Без лимита',
   'steps.title': 'Лимит шагов на задачу',
+  'task.label': 'Статус задачи',
+  'task.product': 'Code',
+  'task.title': 'Сессия агента',
+  'task.titleIn': 'Сессия агента · {folder}',
+  'task.running': 'Выполняется · {time}',
+  'task.seconds': '{n} с',
+  'task.minutes': '{n} мин',
+  'task.hours': '{h} ч {m} мин',
+  'task.hide': 'Скрыть статус задачи',
 } satisfies Record<TtokenComposerKey, string>
 
 /** Portuguese dictionary. */
@@ -95,6 +158,15 @@ export const pt = {
   'steps.off': 'Sem limite de passos',
   'steps.none': 'Sem limite',
   'steps.title': 'Limite de passos por tarefa',
+  'task.label': 'Status da tarefa',
+  'task.product': 'Code',
+  'task.title': 'Sessão do agente',
+  'task.titleIn': 'Sessão do agente · {folder}',
+  'task.running': 'Em andamento · {time}',
+  'task.seconds': '{n} s',
+  'task.minutes': '{n} min',
+  'task.hours': '{h} h {m} min',
+  'task.hide': 'Ocultar o status da tarefa',
 } satisfies Record<TtokenComposerKey, string>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

@@ -11,7 +11,7 @@ import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import type { AndroidDevice, AndroidDeviceList, DeviceInput, DeviceKey, DeviceScreen } from '../types.ts'
+import type { AndroidDevice, AndroidDeviceList, AndroidEmulatorList, DeviceInput, DeviceKey, DeviceScreen } from '../types.ts'
 import type { NS } from './locales.ts'
 import css from './DevicePanel.module.css'
 
@@ -23,6 +23,8 @@ const AFTER_INPUT_MS = 350
 const TAP_SLOP = 8
 /** Shortest and longest swipe the panel sends, in milliseconds. */
 const SWIPE_MS = { min: 120, max: 2_000 } as const
+/** Milliseconds after an emulator starts at which the panel looks for devices again, while it boots. */
+const BOOT_CHECKS_MS = [12_000, 30_000, 60_000] as const
 
 type Translate = PropsLocale<typeof NS>['t']
 
@@ -48,6 +50,18 @@ export interface DevicePanelInjected {
    * @returns completion, or why the device did not take it.
    */
   send: (serial: string, input: DeviceInput) => Promise<RemoteResult<void>>
+  /**
+   * List the Android Virtual Devices the emulator can start.
+   * @param signal - cancellation of the read.
+   * @returns the AVD names, or why the emulator is missing.
+   */
+  listEmulators: (signal: AbortSignal) => Promise<RemoteResult<AndroidEmulatorList>>
+  /**
+   * Start an Android Virtual Device in its own window.
+   * @param name - AVD name.
+   * @returns completion, or why the emulator did not start.
+   */
+  startEmulator: (name: string) => Promise<RemoteResult<void>>
   /**
    * Open a mirror window of a device on the Host's desktop.
    * @param serial - adb serial.
@@ -87,7 +101,7 @@ interface Press {
  * @returns the panel.
  */
 export function DevicePanel(props: DevicePanelProps): ReactElement {
-  const { t, listDevices, readScreen, send, openMirror, addToDraft, openPlatformTools } = props
+  const { t, listDevices, listEmulators, readScreen, send, openMirror, startEmulator, addToDraft, openPlatformTools } = props
   const [state, setState] = useState<DeviceState>({ kind: 'loading' })
   const [selected, setSelected] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -97,7 +111,9 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
   const [text, setText] = useState('')
   const [reload, setReload] = useState(0)
   const [frame, setFrame] = useState(0)
+  const [avds, setAvds] = useState<readonly string[]>([])
   const press = useRef<Press | null>(null)
+  const bootChecks = useRef<number[]>([])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -119,8 +135,13 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
     }, (error: unknown) => {
       if (!controller.signal.aborted) setState({ kind: 'failed', message: messageOf(error) })
     })
+    void listEmulators(controller.signal).then((result) => {
+      if (!controller.signal.aborted) setAvds(result.ok && result.value.emulator === 'ready' ? result.value.names : [])
+    }, () => { if (!controller.signal.aborted) setAvds([]) })
     return () => { controller.abort() }
-  }, [listDevices, reload])
+  }, [listDevices, listEmulators, reload])
+
+  useEffect(() => () => { for (const timer of bootChecks.current) window.clearTimeout(timer) }, [])
 
   const devices = state.kind === 'ready' ? state.devices : []
   const device = devices.find(candidate => candidate.serial === selected) ?? null
@@ -229,6 +250,18 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
     }, (error: unknown) => { setNotice(t('mirror.failed', { message: messageOf(error) })) })
   }
 
+  const startAvd = (name: string): void => {
+    setPickerOpen(false)
+    void startEmulator(name).then((result) => {
+      if (!result.ok) {
+        setNotice(t('emulator.failed', { message: result.error.message }))
+        return
+      }
+      setNotice(t('emulator.starting', { name: avdLabelOf(name) }))
+      bootChecks.current = BOOT_CHECKS_MS.map(delay => window.setTimeout(() => { setReload(value => value + 1) }, delay))
+    }, (error: unknown) => { setNotice(t('emulator.failed', { message: messageOf(error) })) })
+  }
+
   const handToAgent = (): void => {
     if (device === null) return
     const name = nameOf(device, t)
@@ -245,7 +278,7 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
             className={css.picker}
             aria-haspopup="menu"
             aria-expanded={pickerOpen}
-            disabled={devices.length === 0}
+            disabled={devices.length === 0 && avds.length === 0}
             onClick={() => { setPickerOpen(open => !open) }}
           >
             <PhoneGlyph />
@@ -260,9 +293,9 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
             </span>
             <ChevronGlyph />
           </button>
-          {pickerOpen && devices.length > 0 && (
+          {pickerOpen && (devices.length > 0 || avds.length > 0) && (
             <div role="menu" aria-label={t('picker.label')} className={css.menu}>
-              <p className={css.menuHeading}>{t('picker.heading')}</p>
+              {devices.length > 0 && <p className={css.menuHeading}>{t('picker.heading')}</p>}
               {devices.map(candidate => (
                 <button
                   key={candidate.serial}
@@ -277,6 +310,12 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
                 >
                   <span className={css.menuName}>{nameOf(candidate, t)}</span>
                   <span className={css.menuNote}>{noteOf(candidate, t)}</span>
+                </button>
+              ))}
+              {avds.length > 0 && <p className={css.menuHeading}>{t('emulator.heading')}</p>}
+              {avds.map(name => (
+                <button key={name} type="button" role="menuitem" className={css.menuItem} onClick={() => { startAvd(name) }}>
+                  <span className={css.menuName}>{t('emulator.start', { name: avdLabelOf(name) })}</span>
                 </button>
               ))}
             </div>
@@ -299,6 +338,8 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
       <div className={css.body}>
         <DeviceBody
           state={state}
+          avds={avds}
+          startAvd={startAvd}
           device={device}
           screen={screen}
           screenError={screenError}
@@ -355,6 +396,8 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
 /** Props of the panel's middle: the screen, or why there is none. */
 interface DeviceBodyProps {
   readonly state: DeviceState
+  readonly avds: readonly string[]
+  readonly startAvd: (name: string) => void
   readonly device: AndroidDevice | null
   readonly screen: DeviceScreen | null
   readonly screenError: string | null
@@ -366,7 +409,7 @@ interface DeviceBodyProps {
 
 /** The selected device's screen, or the state that keeps it from showing. */
 function DeviceBody(props: DeviceBodyProps): ReactElement {
-  const { state, device, screen, screenError, t, openPlatformTools, onPointerDown, onPointerUp } = props
+  const { state, avds, startAvd, device, screen, screenError, t, openPlatformTools, onPointerDown, onPointerUp } = props
   switch (state.kind) {
     case 'loading':
       return <p className={css.state}>{t('loading')}</p>
@@ -395,6 +438,11 @@ function DeviceBody(props: DeviceBodyProps): ReactElement {
       <div className={css.state}>
         <p className={css.stateTitle}>{t('none.title')}</p>
         <p>{t('none.note')}</p>
+        {avds.map(name => (
+          <button key={name} type="button" className={css.secondary} onClick={() => { startAvd(name) }}>
+            {t('emulator.start', { name: avdLabelOf(name) })}
+          </button>
+        ))}
       </div>
     )
   }
@@ -433,6 +481,11 @@ export function DeviceTitle({ t }: PropsRuntime<'sidebar.right.pane.tab.title'> 
 /** A device's model, or a generic name when adb reports none. */
 function nameOf(device: AndroidDevice, t: Translate): string {
   return device.model ?? t('unnamed')
+}
+
+/** An AVD name as people read it: `Pixel_9_API_35` reads as `Pixel 9 API 35`. */
+function avdLabelOf(name: string): string {
+  return name.replaceAll('_', ' ')
 }
 
 /** How a device is connected and whether it is ready. */

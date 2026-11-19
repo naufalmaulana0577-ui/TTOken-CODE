@@ -23,6 +23,12 @@ export type AndroidDeviceList =
   /** adb is not installed, or could not start; the message says why. */
   | { readonly adb: 'missing'; readonly message: string }
 
+/** The Android Virtual Devices the emulator can start, or why the emulator could not run on the Host. */
+export type AndroidEmulatorList =
+  | { readonly emulator: 'ready'; readonly names: readonly string[] }
+  /** The emulator is not installed, or could not start; the message says why. */
+  | { readonly emulator: 'missing'; readonly message: string }
+
 /** One screenshot of a device. */
 export interface DeviceScreen {
   /** PNG image, base64. */
@@ -62,5 +68,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'devicePanel/invalid-input': Record<string, never>
     /** The mirror window program is not installed or could not start on the Host; the message says why. */
     'devicePanel/mirror-unavailable': Record<string, never>
+    /** The Android emulator is not installed or could not start on the Host; the message says why. */
+    'devicePanel/emulator-unavailable': Record<string, never>
   }
 }

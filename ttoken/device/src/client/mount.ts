@@ -62,6 +62,8 @@ function registerUi(ctx: Context): void {
     locale: NS,
     inject: (sessionId: SessionId): DevicePanelInjected => ({
       listDevices: signal => remote.devices(signal),
+      listEmulators: signal => remote.emulators(signal),
+      startEmulator: name => remote.startEmulator(name),
       readScreen: (serial, signal) => remote.screen(serial, signal),
       send: (serial, input) => remote.input(serial, input),
       openMirror: serial => remote.mirror(serial),

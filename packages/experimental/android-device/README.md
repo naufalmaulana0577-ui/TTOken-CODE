@@ -13,12 +13,13 @@ The Device tab of the right sidebar lists the Android phones and emulators that 
 
 ## Use this package
 
-The web-app bundle loads it. Install Android platform-tools so `adb` is on PATH, turn on USB debugging on the phone and allow this computer, then open the Device entry from the right sidebar's guide. Install scrcpy for the mirror window.
+The web-app bundle loads it. Install Android platform-tools, turn on USB debugging on the phone and allow this computer, then open the Device entry from the right sidebar's guide. When `adbCommand` or `emulatorCommand` names the bare tool and it is not on PATH, the Host also tries the SDK in `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and Android Studio's default SDK directory. The device menu, and the panel while no device is attached, offer to start each Android Virtual Device; a started emulator keeps running after the app quits. Install scrcpy for the mirror window.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `adbCommand` | `adb` | adb executable name or absolute Host path |
 | `mirrorCommand` | `scrcpy` | Mirror window program |
+| `emulatorCommand` | `emulator` | Android emulator executable |
 | `timeoutMs` | `15000` | Deadline of one adb run |
 | `maxScreenBytes` | `33554432` | Largest screenshot |
 

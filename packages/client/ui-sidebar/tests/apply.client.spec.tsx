@@ -86,7 +86,9 @@ describe('ui-sidebar apply', () => {
     expect(leading[0]!.locale).toBe('sidebar')
     expect(leading[0]!.inject).toBe(b.slots.entries('sidebar')[0]!.inject)
     const injected = (b.slots.entries('sidebar')[0]!.inject as () => SidebarRootInjected)()
-    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'openDevice', 'deviceNav', 'hooks'])
+    expect(Object.keys(injected)).toEqual([
+      'startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'openDevice', 'deviceNav', 'showConversation', 'hooks',
+    ])
     expect(injected.deviceNav?.getSnapshot()).toBe(false)
     expect(injected.hooks.panels.getSnapshot()).toEqual([])
     expect(injected.hooks.entryPins.getSnapshot()).toEqual([])

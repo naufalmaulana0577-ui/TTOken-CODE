@@ -4,7 +4,7 @@
  * The shell renders the surrounding chrome (button, nav heading row) and
  * reads each entry's `label` option for aria text.
  */
-import { FishLogo, IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './chrome.module.css'
 
@@ -15,18 +15,15 @@ export type TriggerContentProps = PropsRuntime<'settings.trigger'> & PropsLocale
 export type HeaderContentProps = PropsRuntime<'settings.header'> & PropsLocale<'settings'>
 
 /**
- * Render the trigger row content: in the wide column the TTOken mark on an ink
- * disc, the label, and a trailing gear; in the rail the gear alone.
+ * Render the trigger row content (icon; label only in the wide column).
  * @param props - composed slot props.
  * @returns the trigger content fragment.
  */
 export function TriggerContent({ wide, t }: TriggerContentProps) {
-  if (!wide) return <IconSettingsOutlineMedium size={18} />
   return (
     <>
-      <span className={css.ttokenAvatar} aria-hidden="true"><FishLogo size={18} /></span>
-      <span className={css.triggerLabel}>{t('trigger')}</span>
-      <IconSettingsOutlineMedium size={16} className={css.ttokenGear} />
+      <IconSettingsOutlineMedium size={wide ? 16 : 18} />
+      {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
     </>
   )
 }

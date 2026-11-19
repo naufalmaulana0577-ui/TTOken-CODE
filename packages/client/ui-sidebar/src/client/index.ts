@@ -87,6 +87,7 @@ export function apply(ctx: ClientContext): void {
     trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },
     openDevice: ttokenDevice.open,
     deviceNav: ttokenDevice.available,
+    showConversation: () => { ctx.layout.selectPanel(null) },
     hooks: { panels, shortcuts: ctx.shortcuts.catalog, entryPins: panelPins.unpinned, entryActions },
   })
   ctx.slots.inject('sidebar', function* () {

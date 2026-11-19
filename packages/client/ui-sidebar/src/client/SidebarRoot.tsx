@@ -22,19 +22,20 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineRegular, IconPlusOutlineMedium,
-  IconPanelLeftOutlineRegular, IconPinFillRegular, focusWithoutRing, isBehindModal, isDarwinDesktop, Menu, ShortcutKeys, Toast,
-  Tooltip, useModalLayer, writeClipboard,
+  FishLogo, IconPanelLeftOutlineRegular, IconPinFillRegular, IconPlusOutlineMedium, focusWithoutRing, isBehindModal, isDarwinDesktop,
+  Toast, Tooltip, useModalLayer, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsRenderFactories, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  SidebarPanelActionsOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionHookContext,
+  SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionHookContext,
   SidebarSectionOwnerProps,
 } from './contract/slots.ts'
-import { FIXED_PANEL_ID } from './panel-pins.ts'
 import { createScrollHandoff } from './scroll-handoff.ts'
 import css from './SidebarRoot.module.css'
-import { TTOKEN_FOOT_PANELS, TtokenDeviceRow, useDeviceAvailable } from './ttoken-nav.tsx'
+import {
+  TTOKEN_CHAT_VIEW, TTOKEN_FOOT_PANELS, TTOKEN_ISSUES_VIEW, TTOKEN_REVIEW_PANEL, TtokenDeviceIcon, TtokenHomeIcon, TtokenIssuesIcon,
+  TtokenRailButton, requestConversationView, useDeviceAvailable, useShownConversationView,
+} from './ttoken-nav.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
@@ -70,7 +71,7 @@ function PanelRow({
   const active = usePanelInfo(info => info.activePanelId === id)
   const trailing = useId()
   return (
-    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)} data-panel-id={id}>
+    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)}>
       <Tooltip label={label} delayMs={500} disabled={wide}>
         <button
           type="button"
@@ -110,35 +111,7 @@ function PanelRow({
   )
 }
 
-type PanelMoreMenuProps =
-  Pick<SidebarSectionOwnerProps, 'wide'>
-  & Omit<SidebarPanelActionsOwnerProps, 'onDismiss'>
-  & PropsRenderSlots<'sidebar.panellist.actions'>
-  & Pick<InjectFace<SidebarRootInjected>, 'trackEntryClick'>
-  & { readonly label: string }
-
-/** The panel list's More launcher: a panel-row button whose menu rows come from `sidebar.panellist.actions`. */
-function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, trackEntryClick, renderSlot }: PanelMoreMenuProps) {
-  const [open, setOpen] = useState(false)
-  const onDismiss = (): void => { setOpen(false) }
-  return (
-    <Menu open={open} onClose={onDismiss} portal autoFocus className={css.moreAnchor} listClassName={css.moreMenu}
-      anchor={(
-        <Tooltip label={label} delayMs={500} disabled={wide}>
-          <button type="button" className={css.panelRow} aria-label={label} aria-haspopup="menu" aria-expanded={open}
-            onClick={() => {
-              trackEntryClick({ menu_name: 'more', position: 'sidebar' })
-              setOpen(value => !value)
-            }}>
-            <span className={css.panelGlyph} aria-hidden="true"><IconAppsAddOutlineRegular size={wide ? 16 : 18} /></span>
-            {wide && <span className={clsx(css.panelTitle, css.wide)}>{label}</span>}
-          </button>
-        </Tooltip>
-      )}>
-      {renderSlot('sidebar.panellist.actions', { entries, onOpen, onPinnedChange, onDismiss })}
-    </Menu>
-  )
-}
+// TTOken Code: the rail lists every panel, so the panel list's More menu is not offered.
 
 /**
  * Render the sidebar column shell.
@@ -156,10 +129,9 @@ export function SidebarRoot({
   trackEntryClick,
   useRemoteAccess,
   usePanels,
-  useEntryPins,
-  useEntryActions,
   deviceNav,
   openDevice,
+  showConversation,
   useShortcuts,
   usePanelInfo,
   t,
@@ -167,10 +139,9 @@ export function SidebarRoot({
   renderFactorySlot,
 }: SidebarRootComponentProps) {
   const panels = usePanels(snapshot => snapshot)
-  const unpinned = useEntryPins(ids => ids)
   const activePanelId = usePanelInfo(info => info.activePanelId)
-  const hasEntryActions = useEntryActions(registered => registered)
   const deviceAvailable = useDeviceAvailable(deviceNav)
+  const shownView = useShownConversationView()
   const shortcut = useShortcuts(rows => rows.find(row => row.id === 'sidebar.left.toggle'))
   const newShortcut = useShortcuts(rows => rows.find(row => row.id === 'session.new'))
   // A page whose access snapshot excludes starting a Session offers no New Session affordance.
@@ -191,9 +162,9 @@ export function SidebarRoot({
   const sectionHookContext = useMemo<SidebarSectionHookContext>(
     () => ({ useSectionScroller: scrollHandoff.useSectionScroller }), [scrollHandoff],
   )
-  // The Windows titlebar hosts the New Session controls while the sidebar is collapsed.
+  // TTOken Code: New Session stays in the rail, also while the Windows sidebar is collapsed.
   const openNewSession = (): void => {
-    trackEntryClick({ menu_name: 'new_session', position: windowsTitlebar && collapsed ? 'titlebar' : 'sidebar' })
+    trackEntryClick({ menu_name: 'new_session', position: 'sidebar' })
     startSession()
   }
   // The Windows caption menus occupy the strip to the right of these controls
@@ -253,8 +224,8 @@ export function SidebarRoot({
   }
 
   const darwinDesktop = isDarwinDesktop()
-  // Rail resting state is the whale mark; hovering swaps in the panel icon
-  // (the expand affordance, figma sidebar-hover flow). Expanded it is a plain
+  // TTOken Code: the toggle rests as the mark at the rail's top in both widths
+  // and swaps in the panel icon on hover; the Windows caption row keeps a plain
   // panel icon.
   const toggle = (
     <Tooltip label={toggleLabel} shortcutKeys={shortcut?.keys} delayMs={500} side={captionTooltipSide} portal={drawer}>
@@ -267,16 +238,47 @@ export function SidebarRoot({
         aria-keyshortcuts={shortcut?.aria}
         onClick={() => { toggleSidebar() }}
       >
-        {!wide && !windowsTitlebar && (
+        {!windowsTitlebar && (
           <span className={css.railMark} aria-hidden="true">
             {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
           </span>
         )}
-        {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-        <IconPanelLeftOutlineRegular className={css.panelIcon} size={wide || windowsTitlebar ? 16 : 18} />
+        {/* Rail icons render at 18 (figma rail spec); the Windows caption row keeps 16. */}
+        <IconPanelLeftOutlineRegular className={css.panelIcon} size={windowsTitlebar ? 16 : 18} />
         {!wide && renderSlot('sidebar.toggle.badge', {})}
       </button>
     </Tooltip>
+  )
+
+  // TTOken Code: the column is an ink icon rail beside the Session panel. The
+  // rail carries the TTOken mark, New Session, the navigation, the foot panels,
+  // and Settings in both widths. The panel carries the product name and the
+  // Workspace browser; collapsed, it stays mounted but hidden, so the browser
+  // keeps its state and its search shortcut. The rail lists every panel, so
+  // panel pins are not offered.
+  const navPanels = panels.filter(({ id }) => !TTOKEN_FOOT_PANELS.includes(id))
+  const footPanels = panels.filter(({ id }) => TTOKEN_FOOT_PANELS.includes(id))
+  const issuesAvailable = panels.some(({ id }) => id === TTOKEN_REVIEW_PANEL)
+  const issuesShown = activePanelId === null && shownView === TTOKEN_ISSUES_VIEW
+  const showView = (view: string): void => {
+    showConversation?.()
+    requestConversationView(view)
+  }
+  const railRow = ({ id, label }: SidebarPanelMetadata) => (
+    <PanelRow
+      key={id}
+      id={id}
+      label={label}
+      wide={false}
+      unpinLabel={t('panels.unpin', { name: label })}
+      unpinTooltip={t('panels.unpinTooltip')}
+      canUnpin={false}
+      setPinned={setPinned}
+      usePanelInfo={usePanelInfo}
+      selectPanel={selectPanel}
+      trackEntryClick={trackEntryClick}
+      renderFactorySlot={renderFactorySlot}
+    />
   )
 
   return (
@@ -289,7 +291,7 @@ export function SidebarRoot({
       aria-label={drawer ? t('navigation.label') : undefined}
       tabIndex={drawer ? -1 : undefined}
       className={clsx(
-        css.root, !wide && css.collapsed, !wide && animateRail.current && css.railIn,
+        css.root, css.ttokenRoot, !wide && css.collapsed, !wide && animateRail.current && css.railIn,
         !drawer && collapsed && wide && css.fading, !pointerInside && css.quietBars,
       )}
       style={wide ? { width: !drawer && collapsed ? lastWideWidth.current : width } : undefined}
@@ -297,175 +299,113 @@ export function SidebarRoot({
       onPointerMove={trackPointer}
       onPointerLeave={() => { setPointerInside(false) }}
     >
-      {/* macOS hiddenInset titlebar: the strip shares the row with the
-          traffic lights and keeps the toggle at the sidebar's top-right. */}
-      {darwinDesktop && <div className={css.topStrip} data-window-drag>{toggle}</div>}
-      <div className={css.logoRow} data-window-drag>
-        {/* Expanded, the brand doubles as a New Session shortcut while the
-            access snapshot allows `session/create` — except on
-            macOS, where it stays part of the logo row's window-drag surface
-            (the drag-row controls rule would subtract a button);
-            the collapsed rail's logo is the expand toggle below instead.
-            Mouse clicks on the local-build fallbacks copy the version instead. */}
-        {wide && (() => {
-          const identity = (
-            <span className={css.brandIdentity} aria-hidden="true">
-              <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, {
-                  fallback: buildVersion === undefined
-                    ? <FishLogo size={24} />
-                    : <span className={css.copyVersion} data-copy-version onClick={copyVersion(buildVersion)}><FishLogo size={24} /></span>,
-                })}
+      {/* Windows keeps the toggle in its caption row, outside the rail's ink. */}
+      {windowsTitlebar && toggle}
+      <div className={css.ttokenRail}>
+        {/* macOS keeps the traffic lights above the rail. */}
+        {darwinDesktop && <div className={css.ttokenRailStrip} />}
+        <div className={css.ttokenRailBrand}>
+          {/* The mark is the toggle, so it keeps focus across both widths; Windows keeps its toggle in the caption row. */}
+          {windowsTitlebar
+            ? (
+              <span className={css.ttokenRailMark} aria-hidden="true">
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
               </span>
-              <span className={css.brandName}>
-                {renderSlot('sidebar.brand.name', {}, {
-                  fallback: buildVersion === undefined
-                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
-                    : (
-                      <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                        <span className={css.buildVersion}>{buildVersion}</span>
-                      </span>
-                    ),
-                })}
-              </span>
-            </span>
-          )
-          return darwinDesktop || !canStartSession
-            ? <span className={clsx(css.brand, css.wide)}>{identity}</span>
-            : (
-              <button
-                type="button"
-                className={clsx(css.brand, css.wide)}
-                aria-label={t('session.new.label')}
-                aria-keyshortcuts={newShortcut?.aria}
-                onClick={(event) => {
-                  if ((event.target as Element).closest('[data-copy-version]') !== null) return
-                  openNewSession()
-                }}
-              >
-                {identity}
-              </button>
             )
-        })()}
-        {!darwinDesktop && toggle}
-      </div>
-
-      {/* The label fades before the hover/focus shortcut, including on translucent backgrounds. */}
-      {canStartSession && (
-        <div className={css.newSessionRow}>
-          {renderSlot('sidebar.session.action', { wide }, {
-            children: (
-              <Tooltip label={t('session.new.label')} shortcutKeys={newShortcut?.keys} delayMs={500} side={captionTooltipSide} disabled={wide}>
-                <button
-                  type="button"
-                  className={css.newSession}
-                  aria-label={t('session.new.label')}
-                  aria-keyshortcuts={newShortcut?.aria}
-                  onClick={openNewSession}
-                >
-                  <span className={css.newSessionLabelMask}><span className={css.newSessionContent}>
-                    {wide
-                      ? <IconPlusOutlineMedium size={16} />
-                      : <IconNewChatOutlineRegular size={windowsTitlebar ? 16 : 18} />}
-                    {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-                  </span></span>
-                  {wide && newShortcut !== undefined && newShortcut.keys.length > 0 && <span className={css.newSessionShortcut} aria-hidden="true">
-                    <ShortcutKeys keys={newShortcut.keys} />
-                  </span>}
-                </button>
-              </Tooltip>
-            ),
-          })}
+            : toggle}
         </div>
-      )}
-
-      <div className={css.scrollRegion}>
-        <div
-          ref={scrollHandoff.bindViewportRef}
-          className={css.scrollArea}
-          data-sidebar-scrollport={wide ? '' : undefined}
-        >
-          {panels.length > 0 && (
-            <nav className={css.panelList} aria-label={t('panels.label')}>
-              {panels.filter(({ id }) => id === FIXED_PANEL_ID || !hasEntryActions || !unpinned.includes(id)).map(({ id, label }) => (
-                <PanelRow
-                  key={id}
-                  id={id}
-                  label={label}
-                  wide={wide}
-                  unpinLabel={t('panels.unpin', { name: label })}
-                  unpinTooltip={t('panels.unpinTooltip')}
-                  canUnpin={hasEntryActions && id !== FIXED_PANEL_ID}
-                  setPinned={setPinned}
-                  usePanelInfo={usePanelInfo}
-                  selectPanel={selectPanel}
-                  trackEntryClick={trackEntryClick}
-                  renderFactorySlot={renderFactorySlot}
-                />
-              ))}
-              {deviceAvailable && openDevice !== undefined && <TtokenDeviceRow wide={wide} label={t('ttoken.device')} onOpen={openDevice} />}
-              {hasEntryActions && (
-                <PanelMoreMenu
-                  wide={wide}
-                  label={t('panels.more')}
-                  entries={panels.filter(({ id }) => id !== FIXED_PANEL_ID)
-                    .map(({ id, label }) => ({ id, label, pinned: !unpinned.includes(id), active: id === activePanelId }))}
-                  onOpen={(id) => {
-                    const entry = officialEntry(id)
-                    if (entry !== undefined) trackEntryClick({ menu_name: entry, position: 'sidebar_more' })
-                    const panel = panels.find(candidate => candidate.id === id)
-                    if (panel !== undefined) selectPanel(panel.id)
-                  }}
-                  onPinnedChange={setPinned}
-                  trackEntryClick={trackEntryClick}
-                  renderSlot={renderSlot}
-                />
-              )}
-            </nav>
+        {canStartSession && (
+          <div className={css.ttokenRailNew}>
+            {renderSlot('sidebar.session.action', { wide: false }, {
+              children: (
+                <Tooltip label={t('session.new.label')} shortcutKeys={newShortcut?.keys} delayMs={500} side="right">
+                  <button
+                    type="button"
+                    className={css.ttokenNewSession}
+                    aria-label={t('session.new.label')}
+                    aria-keyshortcuts={newShortcut?.aria}
+                    onClick={openNewSession}
+                  >
+                    <IconPlusOutlineMedium size={18} />
+                  </button>
+                </Tooltip>
+              ),
+            })}
+          </div>
+        )}
+        <nav className={css.ttokenRailNav} aria-label={t('panels.label')}>
+          <TtokenRailButton
+            label={t('ttoken.home')}
+            icon={<TtokenHomeIcon />}
+            active={activePanelId === null && !issuesShown}
+            onPress={() => { showView(TTOKEN_CHAT_VIEW) }}
+          />
+          {navPanels.map(railRow)}
+          {issuesAvailable && (
+            <TtokenRailButton
+              label={t('ttoken.issues')}
+              icon={<TtokenIssuesIcon />}
+              active={issuesShown}
+              onPress={() => { showView(TTOKEN_ISSUES_VIEW) }}
+            />
           )}
-          <div className={css.regionArea}>
-            {renderSlot('sidebar.workspaces', {
-              wide,
-              expandSidebar: () => { if (collapsed) toggleSidebar() },
-            }, { hookContext: sectionHookContext })}
+          {deviceAvailable && openDevice !== undefined && (
+            <TtokenRailButton
+              label={t('ttoken.device')}
+              icon={<TtokenDeviceIcon />}
+              onPress={() => { showConversation?.(); openDevice() }}
+            />
+          )}
+        </nav>
+        <div className={css.ttokenRailFoot}>
+          {footPanels.map(railRow)}
+          <div className={css.footerActions}>
+            {renderSlot('sidebar.footer.action', { wide: false })}
+          </div>
+          <div className={css.settingsArea}>
+            {renderSlot('sidebar.settings', { wide: false })}
           </div>
         </div>
-        <span className={css.scrollFade} aria-hidden="true" />
+      </div>
+      <div className={clsx(css.ttokenPanel, wide && css.wide)}>
+        {/* macOS hiddenInset titlebar: the strip clears the traffic lights. */}
+        {wide && darwinDesktop && <div className={css.topStrip} data-window-drag />}
+        {wide && (
+          <div className={clsx(css.logoRow, css.ttokenPanelHead)} data-window-drag>
+            <span className={css.brandName}>
+              {renderSlot('sidebar.brand.name', {}, {
+                fallback: buildVersion === undefined
+                  ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                  : (
+                    <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
+                      <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                      <span className={css.buildVersion}>{buildVersion}</span>
+                    </span>
+                  ),
+              })}
+            </span>
+          </div>
+        )}
+        <div className={css.scrollRegion}>
+          <div
+            ref={scrollHandoff.bindViewportRef}
+            className={css.scrollArea}
+            data-sidebar-scrollport={wide ? '' : undefined}
+          >
+            <div className={css.regionArea}>
+              {renderSlot('sidebar.workspaces', {
+                wide,
+                expandSidebar: () => { if (collapsed) toggleSidebar() },
+              }, { hookContext: sectionHookContext })}
+            </div>
+          </div>
+          <span className={css.scrollFade} aria-hidden="true" />
+        </div>
       </div>
 
       {copiedToast !== null && (
         <Toast key={copiedToast} tone="success" text={t('version.copied')} onDone={() => { setCopiedToast(null) }} />
       )}
-
-      {/* Footer actions stack above Settings in both sidebar widths. */}
-      <div className={css.footArea}>
-        {/* TTOken Code: Plugins and Automation sit above the settings card, out of the main navigation. */}
-        <div className={css.ttokenFootPanels}>
-          {panels.filter(({ id }) => TTOKEN_FOOT_PANELS.includes(id)).map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              unpinLabel={t('panels.unpin', { name: label })}
-              unpinTooltip={t('panels.unpinTooltip')}
-              canUnpin={false}
-              setPinned={setPinned}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              trackEntryClick={trackEntryClick}
-              renderFactorySlot={renderFactorySlot}
-            />
-          ))}
-        </div>
-        <div className={css.footerActions}>
-          {renderSlot('sidebar.footer.action', { wide })}
-        </div>
-        <div className={css.settingsArea}>
-          {renderSlot('sidebar.settings', { wide })}
-        </div>
-      </div>
     </div>
   )
 }

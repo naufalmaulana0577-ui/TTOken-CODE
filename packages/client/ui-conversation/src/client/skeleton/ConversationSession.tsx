@@ -1,6 +1,6 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Button, IconEllipsisOutlineRegular, Menu, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -117,6 +117,27 @@ export function ConversationSessionHeader({
   const unpinned = useEntryPins(ids => ids)
   const hasEntryActions = useEntryActions(registered => registered)
   const showTabs = !hideChrome && tabs.length > 1
+  // TTOken Code: the sidebar rail selects Views here (its Home and Issues buttons)
+  // and marks the button of the shown View; ui-sidebar's ttoken-nav.tsx owns the events.
+  const activeViewId = active?.id
+  useEffect(() => {
+    const announce = (): void => {
+      window.dispatchEvent(new CustomEvent('ttoken-code:view-shown', { detail: activeViewId }))
+    }
+    const select = (event: Event): void => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') selectView(event.detail)
+    }
+    window.addEventListener('ttoken-code:select-view', select)
+    window.addEventListener('ttoken-code:view-query', announce)
+    announce()
+    return () => {
+      window.removeEventListener('ttoken-code:select-view', select)
+      window.removeEventListener('ttoken-code:view-query', announce)
+    }
+  }, [activeViewId, selectView])
+  useEffect(() => () => {
+    window.dispatchEvent(new CustomEvent('ttoken-code:view-shown', { detail: undefined }))
+  }, [])
   const tabRow = useRef<HTMLDivElement>(null)
   const [visibleViewLimit, setVisibleViewLimit] = useState(1)
   // Observe only the available row width; individual tabs are not measured.

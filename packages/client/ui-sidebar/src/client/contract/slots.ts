@@ -253,8 +253,10 @@ export type SidebarRootInjected = {
   trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void
   /** TTOken Code: open the Android device page in the right sidebar of the on-screen Session. */
   openDevice?: (() => void) | undefined
-  /** TTOken Code: whether the Android device page type is registered; absent hides the Device row. */
+  /** TTOken Code: whether the Android device page type is registered; absent hides the Device button. */
   deviceNav?: ObservableSnapshot<boolean> | undefined
+  /** TTOken Code: close the open global panel and show the Conversation. */
+  showConversation?: (() => void) | undefined
   /** Private reactive sources bound to framework selector hooks. */
   hooks: {
     panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>

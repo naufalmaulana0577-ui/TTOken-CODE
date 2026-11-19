@@ -2295,8 +2295,8 @@ replaceRegion({
   content: `${clientPart('hero/hero.spec.part')}\n`,
 })
 
-// 31d. Sidebar: lockup tinta dengan nama produk Archivo, tombol New session hitam
-//      dengan pintasan yang selalu terlihat, dan baris navigasi aktif berwarna putih.
+// 31d. Gaya sidebar: rel ikon tinta dengan tombol sesi baru kunyit dan tombol aktif
+//      berikon kunyit, serta panel sesi kertas dengan nama produk Archivo.
 editFile({
   name: 'sidebar terang',
   path: 'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
@@ -2306,67 +2306,77 @@ editFile({
   ]],
 })
 
-// 31e. Navigasi sidebar dari desain terang: navigasi utama hanya berisi panel kerja
-//      (Code review) dan baris Device yang membuka panel Perangkat Android di sidebar
-//      kanan. Plugins dan Automation pindah ke atas kartu Settings; menu More upstream
-//      tidak ditampilkan. Baris disembunyikan lewat CSS, jadi urutan dan pin upstream tetap.
+// 31e. Sidebar bertata letak rel ikon + panel sesi. Rel tinta di kiri selalu tampil,
+//      juga saat sidebar diciutkan (termasuk di Windows): mark TTOken, sesi baru, Home,
+//      panel kerja (Code review), Issues, Device, lalu Plugins, Automation, dan Settings
+//      di kakinya. Panel di sebelahnya berisi nama produk dan pohon Workspace; saat
+//      diciutkan panel tetap terpasang tetapi tersembunyi, jadi pencarian sesi tetap
+//      jalan. Semua panel tampil di rel, jadi pin dan menu More upstream tidak ditawarkan.
 const SIDEBAR_ROOT = 'packages/client/ui-sidebar/src/client/SidebarRoot.tsx'
-writeGenerated('sidebar (navigasi)', 'packages/client/ui-sidebar/src/client/ttoken-nav.tsx', clientPart('sidebar/ttoken-nav.tsx'))
+writeGenerated('sidebar (rel)', 'packages/client/ui-sidebar/src/client/ttoken-nav.tsx', clientPart('sidebar/ttoken-nav.tsx'))
 editFile({
-  name: 'sidebar (susunan)',
+  name: 'sidebar (impor)',
   path: SIDEBAR_ROOT,
   pairs: [
     [
-      `  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,\n`,
-      `  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineRegular, IconPlusOutlineMedium,\n`,
-    ],
-    [`import css from './SidebarRoot.module.css'\n`, `import css from './SidebarRoot.module.css'\nimport { TTOKEN_FOOT_PANELS, TtokenDeviceRow, useDeviceAvailable } from './ttoken-nav.tsx'\n`],
-    [
-      `    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)}>\n`,
-      `    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)} data-panel-id={id}>\n`,
-    ],
-    [`  useEntryActions,\n  useShortcuts,\n`, `  useEntryActions,\n  deviceNav,\n  openDevice,\n  useShortcuts,\n`],
-    [
-      `  const hasEntryActions = useEntryActions(registered => registered)\n`,
-      `  const hasEntryActions = useEntryActions(registered => registered)\n  const deviceAvailable = useDeviceAvailable(deviceNav)\n`,
-    ],
-    [`                      ? <IconNewChatOutlineMedium size={14} />\n`, `                      ? <IconPlusOutlineMedium size={16} />\n`],
-    [
-      `              ))}\n              {hasEntryActions && (\n                <PanelMoreMenu\n`,
-      `              ))}\n              {deviceAvailable && openDevice !== undefined && <TtokenDeviceRow wide={wide} label={t('ttoken.device')} onOpen={openDevice} />}\n              {hasEntryActions && (\n                <PanelMoreMenu\n`,
+      `  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,\n  IconPanelLeftOutlineRegular, IconPinFillRegular, focusWithoutRing, isBehindModal, isDarwinDesktop, Menu, ShortcutKeys, Toast,\n  Tooltip, useModalLayer, writeClipboard,\n`,
+      `  FishLogo, IconPanelLeftOutlineRegular, IconPinFillRegular, IconPlusOutlineMedium, focusWithoutRing, isBehindModal, isDarwinDesktop,\n  Toast, Tooltip, useModalLayer, writeClipboard,\n`,
     ],
     [
-      `      <div className={css.footArea}>\n        <div className={css.footerActions}>\n`,
-      `      <div className={css.footArea}>
-        {/* TTOken Code: Plugins and Automation sit above the settings card, out of the main navigation. */}
-        <div className={css.ttokenFootPanels}>
-          {panels.filter(({ id }) => TTOKEN_FOOT_PANELS.includes(id)).map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              unpinLabel={t('panels.unpin', { name: label })}
-              unpinTooltip={t('panels.unpinTooltip')}
-              canUnpin={false}
-              setPinned={setPinned}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              trackEntryClick={trackEntryClick}
-              renderFactorySlot={renderFactorySlot}
-            />
-          ))}
-        </div>
-        <div className={css.footerActions}>\n`,
+      `import type { InjectFace, PropsRenderFactories, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\n`,
+      `import type { InjectFace, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\n`,
+    ],
+    [
+      `  SidebarPanelActionsOwnerProps, SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionHookContext,\n`,
+      `  SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionHookContext,\n`,
+    ],
+    [
+      `import { FIXED_PANEL_ID } from './panel-pins.ts'\nimport { createScrollHandoff } from './scroll-handoff.ts'\nimport css from './SidebarRoot.module.css'\n`,
+      `import { createScrollHandoff } from './scroll-handoff.ts'\nimport css from './SidebarRoot.module.css'\nimport {\n  TTOKEN_CHAT_VIEW, TTOKEN_FOOT_PANELS, TTOKEN_ISSUES_VIEW, TTOKEN_REVIEW_PANEL, TtokenDeviceIcon, TtokenHomeIcon, TtokenIssuesIcon,\n  TtokenRailButton, requestConversationView, useDeviceAvailable, useShownConversationView,\n} from './ttoken-nav.tsx'\n`,
+    ],
+    [`  useEntryPins,\n  useEntryActions,\n  useShortcuts,\n`, `  deviceNav,\n  openDevice,\n  showConversation,\n  useShortcuts,\n`],
+    [
+      `  const unpinned = useEntryPins(ids => ids)\n  const activePanelId = usePanelInfo(info => info.activePanelId)\n  const hasEntryActions = useEntryActions(registered => registered)\n`,
+      `  const activePanelId = usePanelInfo(info => info.activePanelId)\n  const deviceAvailable = useDeviceAvailable(deviceNav)\n  const shownView = useShownConversationView()\n`,
+    ],
+    [
+      `  // Rail resting state is the whale mark; hovering swaps in the panel icon\n  // (the expand affordance, figma sidebar-hover flow). Expanded it is a plain\n  // panel icon.\n`,
+      `  // TTOken Code: the toggle rests as the mark at the rail's top in both widths\n  // and swaps in the panel icon on hover; the Windows caption row keeps a plain\n  // panel icon.\n`,
+    ],
+    [
+      `        {!wide && !windowsTitlebar && (\n          <span className={css.railMark} aria-hidden="true">\n`,
+      `        {!windowsTitlebar && (\n          <span className={css.railMark} aria-hidden="true">\n`,
+    ],
+    [
+      `        {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}\n        <IconPanelLeftOutlineRegular className={css.panelIcon} size={wide || windowsTitlebar ? 16 : 18} />\n`,
+      `        {/* Rail icons render at 18 (figma rail spec); the Windows caption row keeps 16. */}\n        <IconPanelLeftOutlineRegular className={css.panelIcon} size={windowsTitlebar ? 16 : 18} />\n`,
+    ],
+    [
+      `  // The Windows titlebar hosts the New Session controls while the sidebar is collapsed.\n  const openNewSession = (): void => {\n    trackEntryClick({ menu_name: 'new_session', position: windowsTitlebar && collapsed ? 'titlebar' : 'sidebar' })\n`,
+      `  // TTOken Code: New Session stays in the rail, also while the Windows sidebar is collapsed.\n  const openNewSession = (): void => {\n    trackEntryClick({ menu_name: 'new_session', position: 'sidebar' })\n`,
     ],
   ],
+})
+replaceRegion({
+  name: 'sidebar (tanpa menu More)',
+  path: SIDEBAR_ROOT,
+  start: `type PanelMoreMenuProps =\n`,
+  end: `/**\n * Render the sidebar column shell.\n`,
+  content: `// TTOken Code: the rail lists every panel, so the panel list's More menu is not offered.\n\n`,
+})
+replaceRegion({
+  name: 'sidebar (tata letak rel)',
+  path: SIDEBAR_ROOT,
+  start: `  return (\n    <div\n      ref={column}\n`,
+  end: '',
+  content: clientPart('sidebar/SidebarRail.tsx.part'),
 })
 editFile({
   name: 'sidebar (kontrak)',
   path: 'packages/client/ui-sidebar/src/client/contract/slots.ts',
   pairs: [[
     `  /** Record activation of an official navigation control without changing navigation. */\n  trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void\n`,
-    `  /** Record activation of an official navigation control without changing navigation. */\n  trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void\n  /** TTOken Code: open the Android device page in the right sidebar of the on-screen Session. */\n  openDevice?: (() => void) | undefined\n  /** TTOken Code: whether the Android device page type is registered; absent hides the Device row. */\n  deviceNav?: ObservableSnapshot<boolean> | undefined\n`,
+    `  /** Record activation of an official navigation control without changing navigation. */\n  trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void\n  /** TTOken Code: open the Android device page in the right sidebar of the on-screen Session. */\n  openDevice?: (() => void) | undefined\n  /** TTOken Code: whether the Android device page type is registered; absent hides the Device button. */\n  deviceNav?: ObservableSnapshot<boolean> | undefined\n  /** TTOken Code: close the open global panel and show the Conversation. */\n  showConversation?: (() => void) | undefined\n`,
   ]],
 })
 editFile({
@@ -2380,7 +2390,7 @@ editFile({
     ],
     [
       `    trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },\n`,
-      `    trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },\n    openDevice: ttokenDevice.open,\n    deviceNav: ttokenDevice.available,\n`,
+      `    trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },\n    openDevice: ttokenDevice.open,\n    deviceNav: ttokenDevice.available,\n    showConversation: () => { ctx.layout.selectPanel(null) },\n`,
     ],
   ],
 })
@@ -2389,8 +2399,34 @@ editFile({
   path: 'packages/client/ui-sidebar/tests/apply.client.spec.tsx',
   pairs: [[
     `    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'hooks'])\n`,
-    `    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'openDevice', 'deviceNav', 'hooks'])\n    expect(injected.deviceNav?.getSnapshot()).toBe(false)\n`,
+    `    expect(Object.keys(injected)).toEqual([\n      'startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'openDevice', 'deviceNav', 'showConversation', 'hooks',\n    ])\n    expect(injected.deviceNav?.getSnapshot()).toBe(false)\n`,
   ]],
+})
+editFile({
+  name: 'sidebar (pilih tampilan sesi)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/ConversationSession.tsx',
+  pairs: [
+    [`import { useLayoutEffect, useMemo, useRef, useState } from 'react'\n`, `import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'\n`],
+    [`  const showTabs = !hideChrome && tabs.length > 1\n`, `  const showTabs = !hideChrome && tabs.length > 1\n${clientPart('sidebar/session-view-events.tsx.part')}`],
+  ],
+})
+// Rel juga tampil saat sidebar diciutkan di Windows; tombol sesi baru tidak pindah ke bilah judul.
+editFile({
+  name: 'sidebar (rel di Windows)',
+  path: 'packages/client/ui-layout/src/client/AppFrame.tsx',
+  pairs: [[
+    `  // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or\n  // the Windows caption row; neither platform keeps an icon rail.\n  const darwin = document.documentElement.dataset.platform === 'darwin'\n  const collapsedWidth = drawer || darwin || windowsTitlebar ? 0 : SIDEBAR_COLLAPSED\n`,
+    `  // Desktop reopen controls occupy the frame's shell.leading seat on macOS,\n  // which keeps no icon rail; TTOken Code keeps its rail on Windows too.\n  const darwin = document.documentElement.dataset.platform === 'darwin'\n  const collapsedWidth = drawer || darwin ? 0 : SIDEBAR_COLLAPSED\n`,
+  ]],
+})
+editFile({
+  name: 'sidebar (lebar)',
+  path: 'packages/client/ui-layout/src/client/columns.ts',
+  pairs: [
+    [`export const SIDEBAR_MIN = 264\n`, `export const SIDEBAR_MIN = 304\n`],
+    [`export const SIDEBAR_MAX = 420\n`, `export const SIDEBAR_MAX = 476\n`],
+    [`export const SIDEBAR_DEFAULT = 280\n`, `export const SIDEBAR_DEFAULT = 336\n`],
+  ],
 })
 // Urutan kamus sidebar: zh, en, ja, es, fr, de, ru, pt.
 setLocaleValues({
@@ -2405,6 +2441,20 @@ insertLocaleKey({
   after: 'navigation.label',
   key: 'ttoken.device',
   values: ['设备', 'Device', 'デバイス', 'Dispositivo', 'Appareil', 'Gerät', 'Устройство', 'Dispositivo'],
+})
+insertLocaleKey({
+  name: 'sidebar (tombol Home)',
+  path: 'packages/client/ui-sidebar/src/client/locales.ts',
+  after: 'ttoken.device',
+  key: 'ttoken.home',
+  values: ['首页', 'Home', 'ホーム', 'Inicio', 'Accueil', 'Start', 'Главная', 'Início'],
+})
+insertLocaleKey({
+  name: 'sidebar (tombol Issues)',
+  path: 'packages/client/ui-sidebar/src/client/locales.ts',
+  after: 'ttoken.home',
+  key: 'ttoken.issues',
+  values: ['Issues', 'Issues', 'Issues', 'Issues', 'Issues', 'Issues', 'Issues', 'Issues'],
 })
 editFile({
   name: 'sidebar (sesi terpilih)',
@@ -2421,72 +2471,6 @@ editFile({
   pairs: [[
     `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-alias-interactive-bg-hover)')\n`,
     `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-specific-sidebar-nav-item-active)')\n`,
-  ]],
-})
-
-// 31f. Kartu Settings di kaki sidebar: mark TTOken di lingkaran tinta, label Settings,
-//      dan ikon roda gigi, di atas kartu bergaris tipis. Di rel yang diciutkan tetap ikon saja.
-editFile({
-  name: 'kartu settings (isi)',
-  path: 'packages/client/ui-settings-general/src/client/chrome.tsx',
-  pairs: [
-    [`import { IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'\n`, `import { FishLogo, IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'\n`],
-    [
-      `/**\n * Render the trigger row content (icon; label only in the wide column).\n * @param props - composed slot props.\n * @returns the trigger content fragment.\n */\nexport function TriggerContent({ wide, t }: TriggerContentProps) {\n  return (\n    <>\n      <IconSettingsOutlineMedium size={wide ? 16 : 18} />\n      {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}\n    </>\n  )\n}\n`,
-      `/**\n * Render the trigger row content: in the wide column the TTOken mark on an ink\n * disc, the label, and a trailing gear; in the rail the gear alone.\n * @param props - composed slot props.\n * @returns the trigger content fragment.\n */\nexport function TriggerContent({ wide, t }: TriggerContentProps) {\n  if (!wide) return <IconSettingsOutlineMedium size={18} />\n  return (\n    <>\n      <span className={css.ttokenAvatar} aria-hidden="true"><FishLogo size={18} /></span>\n      <span className={css.triggerLabel}>{t('trigger')}</span>\n      <IconSettingsOutlineMedium size={16} className={css.ttokenGear} />\n    </>\n  )\n}\n`,
-    ],
-  ],
-})
-editFile({
-  name: 'kartu settings (gaya isi)',
-  path: 'packages/client/ui-settings-general/src/client/chrome.module.css',
-  pairs: [[
-    `.triggerLabel {\n  overflow: hidden;\n  white-space: nowrap;\n}\n`,
-    `.triggerLabel {\n  overflow: hidden;\n  white-space: nowrap;\n}\n
-/* TTOken Code: the settings card's mark on an ink disc and its trailing gear. */
-.ttokenAvatar {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  corner-shape: round;
-  background: var(--dsw-alias-brand-primary);
-  color: var(--dsw-alias-label-primary-foreground);
-}
-
-.ttokenGear {
-  flex: none;
-  margin-left: auto;
-  color: var(--dsw-alias-label-secondary);
-}
-`,
-  ]],
-})
-editFile({
-  name: 'kartu settings (gaya kartu)',
-  path: 'packages/client/ui-settings-general/src/client/SettingsRoot.module.css',
-  pairs: [[
-    `   overlaps a chrome row's drag — including above every column, which an in-root\n   overlay could not promise once a chrome row declares drag itself. */\n`,
-    `   overlaps a chrome row's drag — including above every column, which an in-root\n   overlay could not promise once a chrome row declares drag itself. */\n
-/* TTOken Code: in the wide column the settings trigger is a card on the paper column. */
-.trigger:not(.rail) {
-  gap: 10px;
-  height: 52px;
-  padding: 0 12px 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  background: var(--dsw-alias-bg-base);
-  background-clip: border-box;
-}
-
-@media (hover: hover) {
-  .trigger:not(.rail):hover {
-    background: var(--dsw-alias-interactive-bg-hover-solid);
-  }
-}
-`,
   ]],
 })
 

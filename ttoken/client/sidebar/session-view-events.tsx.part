@@ -1,0 +1,21 @@
+  // TTOken Code: the sidebar rail selects Views here (its Home and Issues buttons)
+  // and marks the button of the shown View; ui-sidebar's ttoken-nav.tsx owns the events.
+  const activeViewId = active?.id
+  useEffect(() => {
+    const announce = (): void => {
+      window.dispatchEvent(new CustomEvent('ttoken-code:view-shown', { detail: activeViewId }))
+    }
+    const select = (event: Event): void => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') selectView(event.detail)
+    }
+    window.addEventListener('ttoken-code:select-view', select)
+    window.addEventListener('ttoken-code:view-query', announce)
+    announce()
+    return () => {
+      window.removeEventListener('ttoken-code:select-view', select)
+      window.removeEventListener('ttoken-code:view-query', announce)
+    }
+  }, [activeViewId, selectView])
+  useEffect(() => () => {
+    window.dispatchEvent(new CustomEvent('ttoken-code:view-shown', { detail: undefined }))
+  }, [])

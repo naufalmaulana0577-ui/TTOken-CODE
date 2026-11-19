@@ -11,6 +11,8 @@ export const zh = {
   'panels.label': '全局面板',
   'navigation.label': '导航',
   'ttoken.device': '设备',
+  'ttoken.home': '首页',
+  'ttoken.issues': 'Issues',
   'panels.more': '更多',
   'version.copied': '版本号复制成功',
 } satisfies Record<string, string>
@@ -29,6 +31,8 @@ export const en = {
   'panels.label': 'Global panels',
   'navigation.label': 'Navigation',
   'ttoken.device': 'Device',
+  'ttoken.home': 'Home',
+  'ttoken.issues': 'Issues',
   'panels.more': 'More',
   'version.copied': 'Version copied',
 } satisfies Record<SidebarKey, string>
@@ -44,6 +48,8 @@ export const ja = {
   'panels.label': 'グローバルパネル',
   'navigation.label': 'ナビゲーション',
   'ttoken.device': 'デバイス',
+  'ttoken.home': 'ホーム',
+  'ttoken.issues': 'Issues',
   'panels.more': 'その他',
   'version.copied': 'バージョンをコピーしました',
 } satisfies Record<keyof typeof en, string>
@@ -59,6 +65,8 @@ export const es = {
   'panels.label': 'Paneles globales',
   'navigation.label': 'Navegación',
   'ttoken.device': 'Dispositivo',
+  'ttoken.home': 'Inicio',
+  'ttoken.issues': 'Issues',
   'panels.more': 'Más',
   'version.copied': 'Versión copiada',
 } satisfies Record<keyof typeof en, string>
@@ -74,6 +82,8 @@ export const fr = {
   'panels.label': 'Panneaux globaux',
   'navigation.label': 'Navigation',
   'ttoken.device': 'Appareil',
+  'ttoken.home': 'Accueil',
+  'ttoken.issues': 'Issues',
   'panels.more': 'Plus',
   'version.copied': 'Version copiée',
 } satisfies Record<keyof typeof en, string>
@@ -89,6 +99,8 @@ export const de = {
   'panels.label': 'Globale Bereiche',
   'navigation.label': 'Navigation',
   'ttoken.device': 'Gerät',
+  'ttoken.home': 'Start',
+  'ttoken.issues': 'Issues',
   'panels.more': 'Mehr',
   'version.copied': 'Version kopiert',
 } satisfies Record<keyof typeof en, string>
@@ -104,6 +116,8 @@ export const ru = {
   'panels.label': 'Глобальные панели',
   'navigation.label': 'Навигация',
   'ttoken.device': 'Устройство',
+  'ttoken.home': 'Главная',
+  'ttoken.issues': 'Issues',
   'panels.more': 'Ещё',
   'version.copied': 'Версия скопирована',
 } satisfies Record<keyof typeof en, string>
@@ -119,6 +133,8 @@ export const pt = {
   'panels.label': 'Painéis globais',
   'navigation.label': 'Navegação',
   'ttoken.device': 'Dispositivo',
+  'ttoken.home': 'Início',
+  'ttoken.issues': 'Issues',
   'panels.more': 'Mais',
   'version.copied': 'Versão copiada',
 } satisfies Record<keyof typeof en, string>

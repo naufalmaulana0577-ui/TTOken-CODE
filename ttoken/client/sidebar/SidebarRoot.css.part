@@ -1,29 +1,255 @@
-
-/* TTOken Code: the light redesign's sidebar. An ink lockup with the product
-   name in Archivo, an ink New session button that always shows its shortcut,
-   and taller navigation rows whose active row is white on the paper column.
-   A hairline separates the column from the conversation. */
-.root {
+/* TTOken Code: the sidebar is an ink icon rail beside a paper Session panel.
+   The rail keeps its controls in both widths, so it neither fades on collapse
+   nor slides in at the settle; the panel fades out, then stays mounted but
+   hidden in the 56px track. A hairline separates the column from the
+   conversation. */
+.root.ttokenRoot {
+  flex-direction: row;
+  padding: 0;
   border-right: 0.5px solid var(--dsw-alias-border-l3);
 }
 
-.brandMark svg path,
-.railMark svg path {
-  fill: currentColor;
+.fading > .ttokenRail {
+  opacity: 1;
 }
 
-.brandName {
+.railIn .ttokenRail .iconButton {
+  animation: none;
+}
+
+/* The rail is the 56px collapsed track. Upstream controls placed in it read
+   the rail's ink through these rebinds. */
+.ttokenRail {
+  --dsw-alias-label-primary: var(--dsw-specific-ttoken-rail-icon);
+  --dsw-alias-label-secondary: var(--dsw-specific-ttoken-rail-icon);
+  --dsw-alias-label-tertiary: var(--dsw-specific-ttoken-rail-icon);
+  --dsw-alias-label-caption: var(--dsw-specific-ttoken-rail-icon);
+  --dsw-alias-interactive-bg-hover: var(--dsw-specific-ttoken-rail-hover);
+  --dsw-focus-ring-color: var(--dsw-specific-ttoken-rail-accent);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+  height: 100%;
+  padding: 10px 0 8px;
+  box-sizing: border-box;
+  overflow: hidden auto;
+  scrollbar-width: none;
+  background: var(--dsw-specific-ttoken-rail-fill);
+  color: var(--dsw-specific-ttoken-rail-icon);
+}
+
+.ttokenRail::-webkit-scrollbar {
+  display: none;
+}
+
+/* macOS hiddenInset titlebar: the strip clears the traffic lights. */
+.ttokenRailStrip {
+  flex: none;
+  width: 100%;
+  height: 30px;
+}
+
+.ttokenRailBrand {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 10px;
+}
+
+.ttokenRailMark {
+  display: inline-flex;
+  color: var(--dsw-specific-ttoken-rail-mark);
+}
+
+/* The toggle rests as the mark and swaps in the panel icon on hover, in both
+   widths. */
+.ttokenRailBrand .iconButton {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--dsw-radius-md);
+  color: var(--dsw-specific-ttoken-rail-mark);
+}
+
+.ttokenRailBrand .toggle .panelIcon {
+  display: none;
+}
+
+@media (hover: hover) {
+  .ttokenRailBrand .toggle:hover .panelIcon {
+    display: inline;
+  }
+
+  .ttokenRailBrand .toggle:hover .railMark {
+    display: none;
+  }
+}
+
+.ttokenRailNew {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ttokenNewSession {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-specific-ttoken-rail-accent);
+  color: var(--dsw-specific-ttoken-rail-accent-ink);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .ttokenNewSession:hover {
+    background: var(--dsw-specific-ttoken-rail-accent-hover);
+  }
+}
+
+.ttokenNewSession:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color);
+  outline-offset: 2px;
+}
+
+.ttokenRailNav,
+.ttokenRailFoot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ttokenRailNav {
+  margin-top: 18px;
+}
+
+.ttokenRailFoot {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+/* Rail tiles: panel rows and the rail's own buttons share the 36px box. The
+   active tile carries the kunyit glyph and a marker at the rail's leading edge. */
+.ttokenRail .panelEntry {
+  border-inline: 0;
+}
+
+.ttokenRail .panelRow {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border-inline: 0;
+  background-clip: border-box;
+  color: var(--dsw-specific-ttoken-rail-icon);
+}
+
+.ttokenRail .panelEntryActive,
+.ttokenRail .panelEntry:has(:focus-visible) {
+  background-color: var(--dsw-specific-ttoken-rail-active);
+}
+
+.ttokenRail .panelEntryActive .panelRow {
+  color: var(--dsw-specific-ttoken-rail-icon-active);
+}
+
+.ttokenRail .panelEntryActive::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: -10px;
+  width: 3px;
+  border-radius: 0 var(--dsw-radius-xs) var(--dsw-radius-xs) 0;
+  background: var(--dsw-specific-ttoken-rail-icon-active);
+}
+
+@media (hover: hover) {
+  .ttokenRail .panelEntry:hover {
+    background-color: var(--dsw-specific-ttoken-rail-hover);
+  }
+
+  .ttokenRail .panelEntryActive:hover {
+    background-color: var(--dsw-specific-ttoken-rail-active);
+  }
+
+  .ttokenRail .panelEntry:hover .panelRow {
+    color: var(--dsw-specific-ttoken-rail-mark);
+  }
+
+  .ttokenRail .panelEntryActive:hover .panelRow {
+    color: var(--dsw-specific-ttoken-rail-icon-active);
+  }
+}
+
+.ttokenRail .panelTrailing {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+}
+
+.ttokenRailFoot .footerActions,
+.ttokenRailFoot .settingsArea {
+  display: flex;
+  justify-content: center;
+  width: auto;
+}
+
+.ttokenRailFoot .footerActions:empty {
+  display: none;
+}
+
+/* The New Session control stays in the rail, so the collapsed Windows caption
+   row reserves only the toggle before its menus. */
+:global(html[data-windows-titlebar]:has([data-sidebar-collapsed='true'])) {
+  --dsh-windows-menu-start: 48px;
+}
+
+/* Session panel: the upstream column padding, so the Workspace browser keeps
+   its scroll geometry. */
+.ttokenPanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 6px var(--dsh-sidebar-inline-padding);
+  box-sizing: border-box;
+}
+
+.collapsed .ttokenPanel {
+  visibility: hidden;
+}
+
+/* The panel head is the upstream logo row with the product name alone; the
+   Windows caption row keeps its 8px leading inset. */
+:global([data-windows-titlebar]) .root .ttokenPanelHead {
+  padding-left: 8px;
+}
+
+.ttokenPanelHead .brandName {
+  flex: 1;
   font-family: var(--dsw-font-family-brand);
   font-stretch: 125%;
   font-weight: 700;
   letter-spacing: 0;
 }
 
-.fallbackBrandName {
-  font-size: 15px;
-  line-height: 20px;
-}
-
+.fallbackBrandName,
 .localBuildTitle {
   font-size: 15px;
   line-height: 20px;
@@ -32,55 +258,4 @@
 /* The build version stays copyable from the name but is not drawn. */
 .buildVersion {
   display: none;
-}
-
-.root:not(.collapsed) .newSession {
-  height: 44px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-brand-primary);
-  color: var(--dsw-alias-label-primary-foreground);
-}
-
-@media (hover: hover) {
-  .root:not(.collapsed) .newSession:hover {
-    background: var(--dsw-alias-button-primary-hover);
-  }
-}
-
-.root:not(.collapsed) .newSessionContent {
-  justify-content: flex-start;
-  gap: 10px;
-}
-
-.root:not(.collapsed) .newSessionShortcut {
-  opacity: 1;
-  color: color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 72%, transparent);
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-}
-
-.panelRow {
-  min-height: 38px;
-  gap: 12px;
-}
-
-.panelEntryActive {
-  background-color: var(--dsw-specific-sidebar-nav-item-active);
-}
-
-/* Rows the main navigation hides: Plugins and Automation sit above the
-   settings card, and pin customization (More) is not offered. */
-.panelList [data-panel-id='plugins'],
-.panelList [data-panel-id='schedules'],
-.panelList .moreAnchor {
-  display: none;
-}
-
-.ttokenFootPanels {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
 }

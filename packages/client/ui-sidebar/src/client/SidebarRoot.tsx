@@ -22,7 +22,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,
+  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineRegular, IconPlusOutlineMedium,
   IconPanelLeftOutlineRegular, IconPinFillRegular, focusWithoutRing, isBehindModal, isDarwinDesktop, Menu, ShortcutKeys, Toast,
   Tooltip, useModalLayer, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -34,6 +34,7 @@ import type {
 import { FIXED_PANEL_ID } from './panel-pins.ts'
 import { createScrollHandoff } from './scroll-handoff.ts'
 import css from './SidebarRoot.module.css'
+import { TTOKEN_FOOT_PANELS, TtokenDeviceRow, useDeviceAvailable } from './ttoken-nav.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
@@ -69,7 +70,7 @@ function PanelRow({
   const active = usePanelInfo(info => info.activePanelId === id)
   const trailing = useId()
   return (
-    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)}>
+    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)} data-panel-id={id}>
       <Tooltip label={label} delayMs={500} disabled={wide}>
         <button
           type="button"
@@ -157,6 +158,8 @@ export function SidebarRoot({
   usePanels,
   useEntryPins,
   useEntryActions,
+  deviceNav,
+  openDevice,
   useShortcuts,
   usePanelInfo,
   t,
@@ -167,6 +170,7 @@ export function SidebarRoot({
   const unpinned = useEntryPins(ids => ids)
   const activePanelId = usePanelInfo(info => info.activePanelId)
   const hasEntryActions = useEntryActions(registered => registered)
+  const deviceAvailable = useDeviceAvailable(deviceNav)
   const shortcut = useShortcuts(rows => rows.find(row => row.id === 'sidebar.left.toggle'))
   const newShortcut = useShortcuts(rows => rows.find(row => row.id === 'session.new'))
   // A page whose access snapshot excludes starting a Session offers no New Session affordance.
@@ -362,7 +366,7 @@ export function SidebarRoot({
                 >
                   <span className={css.newSessionLabelMask}><span className={css.newSessionContent}>
                     {wide
-                      ? <IconNewChatOutlineMedium size={14} />
+                      ? <IconPlusOutlineMedium size={16} />
                       : <IconNewChatOutlineRegular size={windowsTitlebar ? 16 : 18} />}
                     {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
                   </span></span>
@@ -400,6 +404,7 @@ export function SidebarRoot({
                   renderFactorySlot={renderFactorySlot}
                 />
               ))}
+              {deviceAvailable && openDevice !== undefined && <TtokenDeviceRow wide={wide} label={t('ttoken.device')} onOpen={openDevice} />}
               {hasEntryActions && (
                 <PanelMoreMenu
                   wide={wide}
@@ -435,6 +440,25 @@ export function SidebarRoot({
 
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
+        {/* TTOken Code: Plugins and Automation sit above the settings card, out of the main navigation. */}
+        <div className={css.ttokenFootPanels}>
+          {panels.filter(({ id }) => TTOKEN_FOOT_PANELS.includes(id)).map(({ id, label }) => (
+            <PanelRow
+              key={id}
+              id={id}
+              label={label}
+              wide={wide}
+              unpinLabel={t('panels.unpin', { name: label })}
+              unpinTooltip={t('panels.unpinTooltip')}
+              canUnpin={false}
+              setPinned={setPinned}
+              usePanelInfo={usePanelInfo}
+              selectPanel={selectPanel}
+              trackEntryClick={trackEntryClick}
+              renderFactorySlot={renderFactorySlot}
+            />
+          ))}
+        </div>
         <div className={css.footerActions}>
           {renderSlot('sidebar.footer.action', { wide })}
         </div>

@@ -354,3 +354,19 @@
    ui-web base.css's `body > :not(#root)` subtraction covers it wherever it
    overlaps a chrome row's drag — including above every column, which an in-root
    overlay could not promise once a chrome row declares drag itself. */
+
+/* TTOken Code: in the wide column the settings trigger is a card on the paper column. */
+.trigger:not(.rail) {
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-bg-base);
+  background-clip: border-box;
+}
+
+@media (hover: hover) {
+  .trigger:not(.rail):hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+  }
+}

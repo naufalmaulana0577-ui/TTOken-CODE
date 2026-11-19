@@ -480,3 +480,9 @@
     transition: none;
   }
 }
+
+/* TTOken Code: the selected Session row is white on the paper column, like the active navigation row. */
+.sessionRow.selected {
+  background-color: var(--dsw-specific-sidebar-nav-item-active);
+  font-weight: 500;
+}

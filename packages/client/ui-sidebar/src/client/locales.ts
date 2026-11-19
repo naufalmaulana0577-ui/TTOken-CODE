@@ -10,6 +10,7 @@ export const zh = {
   'toggle.collapse': '收起侧边栏',
   'panels.label': '全局面板',
   'navigation.label': '导航',
+  'ttoken.device': '设备',
   'panels.more': '更多',
   'version.copied': '版本号复制成功',
 } satisfies Record<string, string>
@@ -21,12 +22,13 @@ export type SidebarKey = keyof typeof zh
 export const en = {
   'panels.unpinTooltip': 'Unpin from left sidebar',
   'panels.unpin': 'Unpin {name} from sidebar',
-  'session.new': 'New Session',
+  'session.new': 'New session',
   'session.new.label': 'New session',
   'toggle.open': 'Open sidebar',
   'toggle.collapse': 'Collapse sidebar',
   'panels.label': 'Global panels',
   'navigation.label': 'Navigation',
+  'ttoken.device': 'Device',
   'panels.more': 'More',
   'version.copied': 'Version copied',
 } satisfies Record<SidebarKey, string>
@@ -41,6 +43,7 @@ export const ja = {
   'toggle.collapse': 'サイドバーを折りたたむ',
   'panels.label': 'グローバルパネル',
   'navigation.label': 'ナビゲーション',
+  'ttoken.device': 'デバイス',
   'panels.more': 'その他',
   'version.copied': 'バージョンをコピーしました',
 } satisfies Record<keyof typeof en, string>
@@ -55,6 +58,7 @@ export const es = {
   'toggle.collapse': 'Contraer barra lateral',
   'panels.label': 'Paneles globales',
   'navigation.label': 'Navegación',
+  'ttoken.device': 'Dispositivo',
   'panels.more': 'Más',
   'version.copied': 'Versión copiada',
 } satisfies Record<keyof typeof en, string>
@@ -69,6 +73,7 @@ export const fr = {
   'toggle.collapse': 'Réduire la barre latérale',
   'panels.label': 'Panneaux globaux',
   'navigation.label': 'Navigation',
+  'ttoken.device': 'Appareil',
   'panels.more': 'Plus',
   'version.copied': 'Version copiée',
 } satisfies Record<keyof typeof en, string>
@@ -83,6 +88,7 @@ export const de = {
   'toggle.collapse': 'Seitenleiste einklappen',
   'panels.label': 'Globale Bereiche',
   'navigation.label': 'Navigation',
+  'ttoken.device': 'Gerät',
   'panels.more': 'Mehr',
   'version.copied': 'Version kopiert',
 } satisfies Record<keyof typeof en, string>
@@ -97,6 +103,7 @@ export const ru = {
   'toggle.collapse': 'Свернуть боковую панель',
   'panels.label': 'Глобальные панели',
   'navigation.label': 'Навигация',
+  'ttoken.device': 'Устройство',
   'panels.more': 'Ещё',
   'version.copied': 'Версия скопирована',
 } satisfies Record<keyof typeof en, string>
@@ -111,6 +118,7 @@ export const pt = {
   'toggle.collapse': 'Recolher barra lateral',
   'panels.label': 'Painéis globais',
   'navigation.label': 'Navegação',
+  'ttoken.device': 'Dispositivo',
   'panels.more': 'Mais',
   'version.copied': 'Versão copiada',
 } satisfies Record<keyof typeof en, string>

@@ -2306,6 +2306,190 @@ editFile({
   ]],
 })
 
+// 31e. Navigasi sidebar dari desain terang: navigasi utama hanya berisi panel kerja
+//      (Code review) dan baris Device yang membuka panel Perangkat Android di sidebar
+//      kanan. Plugins dan Automation pindah ke atas kartu Settings; menu More upstream
+//      tidak ditampilkan. Baris disembunyikan lewat CSS, jadi urutan dan pin upstream tetap.
+const SIDEBAR_ROOT = 'packages/client/ui-sidebar/src/client/SidebarRoot.tsx'
+writeGenerated('sidebar (navigasi)', 'packages/client/ui-sidebar/src/client/ttoken-nav.tsx', clientPart('sidebar/ttoken-nav.tsx'))
+editFile({
+  name: 'sidebar (susunan)',
+  path: SIDEBAR_ROOT,
+  pairs: [
+    [
+      `  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,\n`,
+      `  FishLogo, IconAppsAddOutlineRegular, IconNewChatOutlineRegular, IconPlusOutlineMedium,\n`,
+    ],
+    [`import css from './SidebarRoot.module.css'\n`, `import css from './SidebarRoot.module.css'\nimport { TTOKEN_FOOT_PANELS, TtokenDeviceRow, useDeviceAvailable } from './ttoken-nav.tsx'\n`],
+    [
+      `    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)}>\n`,
+      `    <div className={clsx(css.panelEntry, wide && css.panelEntryWide, active && css.panelEntryActive)} data-panel-id={id}>\n`,
+    ],
+    [`  useEntryActions,\n  useShortcuts,\n`, `  useEntryActions,\n  deviceNav,\n  openDevice,\n  useShortcuts,\n`],
+    [
+      `  const hasEntryActions = useEntryActions(registered => registered)\n`,
+      `  const hasEntryActions = useEntryActions(registered => registered)\n  const deviceAvailable = useDeviceAvailable(deviceNav)\n`,
+    ],
+    [`                      ? <IconNewChatOutlineMedium size={14} />\n`, `                      ? <IconPlusOutlineMedium size={16} />\n`],
+    [
+      `              ))}\n              {hasEntryActions && (\n                <PanelMoreMenu\n`,
+      `              ))}\n              {deviceAvailable && openDevice !== undefined && <TtokenDeviceRow wide={wide} label={t('ttoken.device')} onOpen={openDevice} />}\n              {hasEntryActions && (\n                <PanelMoreMenu\n`,
+    ],
+    [
+      `      <div className={css.footArea}>\n        <div className={css.footerActions}>\n`,
+      `      <div className={css.footArea}>
+        {/* TTOken Code: Plugins and Automation sit above the settings card, out of the main navigation. */}
+        <div className={css.ttokenFootPanels}>
+          {panels.filter(({ id }) => TTOKEN_FOOT_PANELS.includes(id)).map(({ id, label }) => (
+            <PanelRow
+              key={id}
+              id={id}
+              label={label}
+              wide={wide}
+              unpinLabel={t('panels.unpin', { name: label })}
+              unpinTooltip={t('panels.unpinTooltip')}
+              canUnpin={false}
+              setPinned={setPinned}
+              usePanelInfo={usePanelInfo}
+              selectPanel={selectPanel}
+              trackEntryClick={trackEntryClick}
+              renderFactorySlot={renderFactorySlot}
+            />
+          ))}
+        </div>
+        <div className={css.footerActions}>\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'sidebar (kontrak)',
+  path: 'packages/client/ui-sidebar/src/client/contract/slots.ts',
+  pairs: [[
+    `  /** Record activation of an official navigation control without changing navigation. */\n  trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void\n`,
+    `  /** Record activation of an official navigation control without changing navigation. */\n  trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void\n  /** TTOken Code: open the Android device page in the right sidebar of the on-screen Session. */\n  openDevice?: (() => void) | undefined\n  /** TTOken Code: whether the Android device page type is registered; absent hides the Device row. */\n  deviceNav?: ObservableSnapshot<boolean> | undefined\n`,
+  ]],
+})
+editFile({
+  name: 'sidebar (sambungan)',
+  path: 'packages/client/ui-sidebar/src/client/index.ts',
+  pairs: [
+    [`import { createPanelPins } from './panel-pins.ts'\n`, `import { createPanelPins } from './panel-pins.ts'\nimport { createDeviceNav } from './ttoken-nav.tsx'\n`],
+    [
+      `  const panelPins = createPanelPins()\n`,
+      `  const panelPins = createPanelPins()\n  const ttokenDevice = createDeviceNav(ctx)\n`,
+    ],
+    [
+      `    trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },\n`,
+      `    trackEntryClick: (attributes) => { ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes) },\n    openDevice: ttokenDevice.open,\n    deviceNav: ttokenDevice.available,\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'sidebar (test sambungan)',
+  path: 'packages/client/ui-sidebar/tests/apply.client.spec.tsx',
+  pairs: [[
+    `    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'hooks'])\n`,
+    `    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'openDevice', 'deviceNav', 'hooks'])\n    expect(injected.deviceNav?.getSnapshot()).toBe(false)\n`,
+  ]],
+})
+// Urutan kamus sidebar: zh, en, ja, es, fr, de, ru, pt.
+setLocaleValues({
+  name: 'sidebar (tombol sesi baru)',
+  path: 'packages/client/ui-sidebar/src/client/locales.ts',
+  key: 'session.new',
+  values: ['新会话', 'New session', '新規セッション', 'Nueva sesión', 'Nouvelle séance', 'Neue Sitzung', 'Новая сессия', 'Nova sessão'],
+})
+insertLocaleKey({
+  name: 'sidebar (baris Device)',
+  path: 'packages/client/ui-sidebar/src/client/locales.ts',
+  after: 'navigation.label',
+  key: 'ttoken.device',
+  values: ['设备', 'Device', 'デバイス', 'Dispositivo', 'Appareil', 'Gerät', 'Устройство', 'Dispositivo'],
+})
+editFile({
+  name: 'sidebar (sesi terpilih)',
+  path: 'packages/client/ui-workspace/src/client/rows/Rows.module.css',
+  pairs: [[
+    `@media (prefers-reduced-motion: reduce) {\n  .arrow {\n    animation: none;\n    transition: none;\n  }\n}\n`,
+    `@media (prefers-reduced-motion: reduce) {\n  .arrow {\n    animation: none;\n    transition: none;\n  }\n}\n\n/* TTOken Code: the selected Session row is white on the paper column, like the active navigation row. */\n.sessionRow.selected {\n  background-color: var(--dsw-specific-sidebar-nav-item-active);\n  font-weight: 500;\n}\n`,
+  ]],
+})
+
+editFile({
+  name: 'sidebar (test sesi terpilih)',
+  path: 'packages/client/ui-workspace/tests/browser-styles.client.spec.ts',
+  pairs: [[
+    `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-alias-interactive-bg-hover)')\n`,
+    `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-specific-sidebar-nav-item-active)')\n`,
+  ]],
+})
+
+// 31f. Kartu Settings di kaki sidebar: mark TTOken di lingkaran tinta, label Settings,
+//      dan ikon roda gigi, di atas kartu bergaris tipis. Di rel yang diciutkan tetap ikon saja.
+editFile({
+  name: 'kartu settings (isi)',
+  path: 'packages/client/ui-settings-general/src/client/chrome.tsx',
+  pairs: [
+    [`import { IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'\n`, `import { FishLogo, IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'\n`],
+    [
+      `/**\n * Render the trigger row content (icon; label only in the wide column).\n * @param props - composed slot props.\n * @returns the trigger content fragment.\n */\nexport function TriggerContent({ wide, t }: TriggerContentProps) {\n  return (\n    <>\n      <IconSettingsOutlineMedium size={wide ? 16 : 18} />\n      {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}\n    </>\n  )\n}\n`,
+      `/**\n * Render the trigger row content: in the wide column the TTOken mark on an ink\n * disc, the label, and a trailing gear; in the rail the gear alone.\n * @param props - composed slot props.\n * @returns the trigger content fragment.\n */\nexport function TriggerContent({ wide, t }: TriggerContentProps) {\n  if (!wide) return <IconSettingsOutlineMedium size={18} />\n  return (\n    <>\n      <span className={css.ttokenAvatar} aria-hidden="true"><FishLogo size={18} /></span>\n      <span className={css.triggerLabel}>{t('trigger')}</span>\n      <IconSettingsOutlineMedium size={16} className={css.ttokenGear} />\n    </>\n  )\n}\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'kartu settings (gaya isi)',
+  path: 'packages/client/ui-settings-general/src/client/chrome.module.css',
+  pairs: [[
+    `.triggerLabel {\n  overflow: hidden;\n  white-space: nowrap;\n}\n`,
+    `.triggerLabel {\n  overflow: hidden;\n  white-space: nowrap;\n}\n
+/* TTOken Code: the settings card's mark on an ink disc and its trailing gear. */
+.ttokenAvatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+.ttokenGear {
+  flex: none;
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary);
+}
+`,
+  ]],
+})
+editFile({
+  name: 'kartu settings (gaya kartu)',
+  path: 'packages/client/ui-settings-general/src/client/SettingsRoot.module.css',
+  pairs: [[
+    `   overlaps a chrome row's drag — including above every column, which an in-root\n   overlay could not promise once a chrome row declares drag itself. */\n`,
+    `   overlaps a chrome row's drag — including above every column, which an in-root\n   overlay could not promise once a chrome row declares drag itself. */\n
+/* TTOken Code: in the wide column the settings trigger is a card on the paper column. */
+.trigger:not(.rail) {
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-bg-base);
+  background-clip: border-box;
+}
+
+@media (hover: hover) {
+  .trigger:not(.rail):hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+  }
+}
+`,
+  ]],
+})
+
 for (const line of report) console.log(line)
 if (failures.length > 0) {
   for (const line of failures) console.error(`GAGAL  ${line}`)

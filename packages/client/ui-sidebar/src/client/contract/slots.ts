@@ -251,6 +251,10 @@ export type SidebarRootInjected = {
   setPinned: (id: string, pinned: boolean) => void
   /** Record activation of an official navigation control without changing navigation. */
   trackEntryClick: (attributes: ProductEventMap['sidebar_menu_click']) => void
+  /** TTOken Code: open the Android device page in the right sidebar of the on-screen Session. */
+  openDevice?: (() => void) | undefined
+  /** TTOken Code: whether the Android device page type is registered; absent hides the Device row. */
+  deviceNav?: ObservableSnapshot<boolean> | undefined
   /** Private reactive sources bound to framework selector hooks. */
   hooks: {
     panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>

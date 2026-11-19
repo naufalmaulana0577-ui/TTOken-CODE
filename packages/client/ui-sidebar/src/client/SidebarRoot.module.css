@@ -915,8 +915,13 @@
 }
 
 .localBuildTitle {
-  font-size: 13px;
-  line-height: 15px;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* The build version stays copyable from the name but is not drawn. */
+.buildVersion {
+  display: none;
 }
 
 .root:not(.collapsed) .newSession {
@@ -953,4 +958,19 @@
 
 .panelEntryActive {
   background-color: var(--dsw-specific-sidebar-nav-item-active);
+}
+
+/* Rows the main navigation hides: Plugins and Automation sit above the
+   settings card, and pin customization (More) is not offered. */
+.panelList [data-panel-id='plugins'],
+.panelList [data-panel-id='schedules'],
+.panelList .moreAnchor {
+  display: none;
+}
+
+.ttokenFootPanels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
 }

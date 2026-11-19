@@ -133,7 +133,7 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(rowDeclarations('.searchResultRow')?.get('min-height')).toBe('48px')
     expect(rowDeclarations('.searchResultTitle')?.get('margin')).toBe('0 var(--dsh-sidebar-label-gap)')
     expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))
-      .toBe('var(--dsw-alias-interactive-bg-hover)')
+      .toBe('var(--dsw-specific-sidebar-nav-item-active)')
   })
 
   it('shares action spacing and inset backgrounds without moving the title column', () => {

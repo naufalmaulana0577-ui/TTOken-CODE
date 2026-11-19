@@ -20,8 +20,11 @@ export interface AndroidDevice {
 /** The devices adb lists, or why adb could not run on the Host. */
 export type AndroidDeviceList =
   | { readonly adb: 'ready'; readonly devices: readonly AndroidDevice[] }
-  /** adb is not installed, or could not start; the message says why. */
-  | { readonly adb: 'missing'; readonly message: string }
+  /**
+   * adb is not installed, or could not start; the message says why, and `installable` says whether the panel can
+   * install Google's platform-tools itself.
+   */
+  | { readonly adb: 'missing'; readonly message: string; readonly installable: boolean }
 
 /** The Android Virtual Devices the emulator can start, or why the emulator could not run on the Host. */
 export type AndroidEmulatorList =
@@ -70,5 +73,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'devicePanel/mirror-unavailable': Record<string, never>
     /** The Android emulator is not installed or could not start on the Host; the message says why. */
     'devicePanel/emulator-unavailable': Record<string, never>
+    /** Google's platform-tools could not be downloaded or unpacked on the Host; the message names the step. */
+    'devicePanel/install-failed': Record<string, never>
   }
 }

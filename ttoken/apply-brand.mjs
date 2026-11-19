@@ -1816,7 +1816,7 @@ const DEVICE_DIR = 'packages/experimental/android-device'
 for (const file of [
   'package.json', 'README.md', 'tsconfig.json', 'tsconfig.host.json', 'tsconfig.client.json', 'tsdown.config.ts',
   'locale/de.json', 'locale/en.json', 'locale/es.json', 'locale/fr.json', 'locale/ja.json', 'locale/pt.json', 'locale/ru.json',
-  'locale/zh.json', 'src/index.ts', 'src/adb.ts', 'src/types.ts', 'src/css-modules.d.ts', 'src/client/index.ts',
+  'locale/zh.json', 'src/index.ts', 'src/adb.ts', 'src/platform-tools.ts', 'src/types.ts', 'src/css-modules.d.ts', 'src/client/index.ts',
   'src/client/mount.ts', 'src/client/DevicePanel.tsx', 'src/client/DevicePanel.module.css', 'src/client/locales.ts',
   'tests/adb.spec.ts',
 ]) {
@@ -1863,8 +1863,10 @@ editFile({
   pairs: [[
     `    - id: ui-sidebar-terminal\n      name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'\n`,
     `    - id: ui-sidebar-terminal\n      name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'\n`
-      + `    # TTOken Code: the right Sidebar's Android device tab, over adb on the Host.\n`
-      + `    - id: android-device\n      name: '@deepseek-ai/dsh-experimental-android-device'\n`,
+      + `    # TTOken Code: the right Sidebar's Android device tab, over adb on the Host. Without adb, the tab installs\n`
+      + `    # Google's platform-tools into the Harness home's data directory.\n`
+      + `    - id: android-device\n      name: '@deepseek-ai/dsh-experimental-android-device'\n`
+      + `      config:\n        platformToolsDirectory: !!js dshPath('data', 'android-platform-tools')\n`,
   ]],
 })
 editFile({

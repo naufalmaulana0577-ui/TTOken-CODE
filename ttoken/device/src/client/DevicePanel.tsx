@@ -76,6 +76,11 @@ export interface DevicePanelInjected {
   addToDraft: (note: string) => boolean
   /** Open the Android platform-tools download page. */
   openPlatformTools: () => void
+  /**
+   * Install Google's platform-tools on the Host, where the next device list finds adb.
+   * @returns completion, or why the install failed.
+   */
+  installAdb: () => Promise<RemoteResult<void>>
 }
 
 /** Full props of the panel body. */
@@ -85,7 +90,13 @@ export type DevicePanelProps = PropsRuntime<'sidebar.right.pane.tab'> & DevicePa
 type DeviceState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly devices: readonly AndroidDevice[] }
-  | { readonly kind: 'missing'; readonly message: string }
+  | { readonly kind: 'missing'; readonly message: string; readonly installable: boolean }
+  | { readonly kind: 'failed'; readonly message: string }
+
+/** The platform-tools install the panel started. */
+type AdbInstall =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'running' }
   | { readonly kind: 'failed'; readonly message: string }
 
 /** Where a press on the screen started. */
@@ -101,7 +112,7 @@ interface Press {
  * @returns the panel.
  */
 export function DevicePanel(props: DevicePanelProps): ReactElement {
-  const { t, listDevices, listEmulators, readScreen, send, openMirror, startEmulator, addToDraft, openPlatformTools } = props
+  const { t, listDevices, listEmulators, readScreen, send, openMirror, startEmulator, addToDraft, openPlatformTools, installAdb } = props
   const [state, setState] = useState<DeviceState>({ kind: 'loading' })
   const [selected, setSelected] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -112,6 +123,7 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
   const [reload, setReload] = useState(0)
   const [frame, setFrame] = useState(0)
   const [avds, setAvds] = useState<readonly string[]>([])
+  const [install, setInstall] = useState<AdbInstall>({ kind: 'idle' })
   const press = useRef<Press | null>(null)
   const bootChecks = useRef<number[]>([])
 
@@ -126,7 +138,7 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
       }
       const list = result.value
       if (list.adb === 'missing') {
-        setState({ kind: 'missing', message: list.message })
+        setState({ kind: 'missing', message: list.message, installable: list.installable })
         return
       }
       setState({ kind: 'ready', devices: list.devices })
@@ -262,6 +274,14 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
     }, (error: unknown) => { setNotice(t('emulator.failed', { message: messageOf(error) })) })
   }
 
+  const startInstall = (): void => {
+    setInstall({ kind: 'running' })
+    void installAdb().then((result) => {
+      setInstall(result.ok ? { kind: 'idle' } : { kind: 'failed', message: result.error.message })
+      if (result.ok) setReload(value => value + 1)
+    }, (error: unknown) => { setInstall({ kind: 'failed', message: messageOf(error) }) })
+  }
+
   const handToAgent = (): void => {
     if (device === null) return
     const name = nameOf(device, t)
@@ -345,6 +365,8 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
           screenError={screenError}
           t={t}
           openPlatformTools={openPlatformTools}
+          install={install}
+          startInstall={startInstall}
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
         />
@@ -385,10 +407,12 @@ export function DevicePanel(props: DevicePanelProps): ReactElement {
       )}
 
       {notice !== null && <p role="status" className={css.notice}>{notice}</p>}
-      <p className={css.footer}>
-        <LinkGlyph />
-        {t('footer')}
-      </p>
+      {state.kind === 'ready' && (
+        <p className={css.footer}>
+          <LinkGlyph />
+          {t('footer')}
+        </p>
+      )}
     </div>
   )
 }
@@ -403,13 +427,16 @@ interface DeviceBodyProps {
   readonly screenError: string | null
   readonly t: Translate
   readonly openPlatformTools: () => void
+  readonly install: AdbInstall
+  readonly startInstall: () => void
   readonly onPointerDown: (event: PointerEvent<HTMLImageElement>) => void
   readonly onPointerUp: (event: PointerEvent<HTMLImageElement>) => void
 }
 
 /** The selected device's screen, or the state that keeps it from showing. */
 function DeviceBody(props: DeviceBodyProps): ReactElement {
-  const { state, avds, startAvd, device, screen, screenError, t, openPlatformTools, onPointerDown, onPointerUp } = props
+  const { state, avds, startAvd, device, screen, screenError, t, openPlatformTools, install, startInstall } = props
+  const { onPointerDown, onPointerUp } = props
   switch (state.kind) {
     case 'loading':
       return <p className={css.state}>{t('loading')}</p>
@@ -417,7 +444,16 @@ function DeviceBody(props: DeviceBodyProps): ReactElement {
       return (
         <div className={css.state}>
           <p className={css.stateTitle}>{t('adbMissing.title')}</p>
-          <p>{t('adbMissing.note')}</p>
+          <p>{state.installable ? t('adbMissing.installNote') : t('adbMissing.note')}</p>
+          {state.installable && (
+            <>
+              <button type="button" className={css.primary} disabled={install.kind === 'running'} onClick={startInstall}>
+                {install.kind === 'running' ? t('adbMissing.installing') : t('adbMissing.install')}
+              </button>
+              <p className={css.terms}>{t('adbMissing.terms')}</p>
+            </>
+          )}
+          {install.kind === 'failed' && <p role="alert" className={css.detail}>{t('adbMissing.installFailed', { message: install.message })}</p>}
           <button type="button" className={css.secondary} onClick={openPlatformTools}>{t('adbMissing.link')}</button>
         </div>
       )

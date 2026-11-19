@@ -69,6 +69,7 @@ function registerUi(ctx: Context): void {
       openMirror: serial => remote.mirror(serial),
       addToDraft: note => addToDraft(sessionId, note),
       openPlatformTools: () => { openLink(PLATFORM_TOOLS_URL) },
+      installAdb: () => remote.installAdb(),
     }),
   }, DevicePanel))
   ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({

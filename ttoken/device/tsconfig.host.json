@@ -8,6 +8,7 @@
   "files": [
     "src/index.ts",
     "src/adb.ts",
+    "src/platform-tools.ts",
     "src/types.ts"
   ],
   "references": [

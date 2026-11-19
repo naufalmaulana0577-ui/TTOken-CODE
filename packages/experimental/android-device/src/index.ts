@@ -6,6 +6,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
+import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
@@ -13,8 +14,9 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   AdbFailedError, adbRunner, AdbUnavailableError, avdProblem, failureText, inputArgs, inputProblem, parseAvds, parseDevices, pngSize,
-  sdkToolCommands, serialProblem, type AdbOutput, type AdbRunner,
+  serialProblem, type AdbOutput, type AdbRunner,
 } from './adb.ts'
+import { installPlatformTools, platformToolsUrl, sdkToolCommands } from './platform-tools.ts'
 import type { AndroidDeviceList, AndroidEmulatorList, DeviceInput, DeviceScreen } from './types.ts'
 
 export type * from './types.ts'
@@ -34,6 +36,13 @@ export interface Config {
   timeoutMs?: number
   /** Largest screenshot in bytes. */
   maxScreenBytes?: number
+  /**
+   * Absolute Host directory the panel installs Google's platform-tools into when adb is missing, and where it then
+   * looks for adb; empty offers no install.
+   */
+  platformToolsDirectory?: string
+  /** Deadline in milliseconds for downloading and unpacking platform-tools. */
+  installTimeoutMs?: number
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -55,6 +64,8 @@ export class DevicePanelController extends TypertRemoteService {
     emulatorCommand: z.string().default('emulator'),
     timeoutMs: z.number().default(15_000),
     maxScreenBytes: z.number().default(33_554_432),
+    platformToolsDirectory: z.string().default(''),
+    installTimeoutMs: z.number().default(300_000),
   })
 
   private readonly adb: AdbRunner
@@ -63,6 +74,12 @@ export class DevicePanelController extends TypertRemoteService {
   private readonly emulatorCommands: readonly string[]
   /** Mirror windows this plugin started, which close when it unloads. */
   private readonly mirrors = new Set<ChildProcess>()
+  /** Directory platform-tools install into; empty when the panel offers no install. */
+  private readonly platformToolsDirectory: string
+  /** Deadline in milliseconds for one platform-tools install. */
+  private readonly installTimeoutMs: number
+  /** Whether a platform-tools install is running, so a second request does not race it. */
+  private installing = false
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'devicePanel')
@@ -76,8 +93,19 @@ export class DevicePanelController extends TypertRemoteService {
     if (!Number.isSafeInteger(resolved.maxScreenBytes) || resolved.maxScreenBytes <= 0) {
       throw new Error('device-panel: maxScreenBytes must be a positive integer')
     }
+    if (resolved.platformToolsDirectory !== '' && !isAbsolute(resolved.platformToolsDirectory)) {
+      throw new Error('device-panel: platformToolsDirectory must be an absolute path or empty')
+    }
+    const installTimeoutMs = resolved.installTimeoutMs
+    if (!Number.isSafeInteger(installTimeoutMs) || installTimeoutMs <= 0 || installTimeoutMs > MAX_TIMER_DELAY_MS) {
+      throw new Error(`device-panel: installTimeoutMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
+    }
+    this.platformToolsDirectory = resolved.platformToolsDirectory
+    this.installTimeoutMs = installTimeoutMs
     this.adb = adbRunner({
-      adbCommands: sdkToolCommands('adb', resolved.adbCommand), timeoutMs: resolved.timeoutMs, maxOutputBytes: resolved.maxScreenBytes,
+      adbCommands: sdkToolCommands('adb', resolved.adbCommand, { installDirectory: resolved.platformToolsDirectory }),
+      timeoutMs: resolved.timeoutMs,
+      maxOutputBytes: resolved.maxScreenBytes,
     })
     this.emulatorCommands = sdkToolCommands('emulator', resolved.emulatorCommand)
     this.emulator = adbRunner({
@@ -93,7 +121,8 @@ export class DevicePanelController extends TypertRemoteService {
   /**
    * List the devices adb on the Host sees, starting the adb server when it is not running.
    * @param signal - request cancellation.
-   * @returns the devices, or `missing` with the reason when adb cannot start.
+   * @returns the devices, or `missing` with the reason when adb cannot start and whether {@link installAdb} can
+   * install it.
    * @throws `devicePanel/adb-failed` when adb runs but fails.
    */
   @Remote
@@ -103,12 +132,41 @@ export class DevicePanelController extends TypertRemoteService {
     try {
       output = await this.adb(['devices', '-l'], signal)
     } catch (error) {
-      if (error instanceof AdbUnavailableError) return { adb: 'missing', message: error.message }
+      if (error instanceof AdbUnavailableError) {
+        const installable = this.platformToolsDirectory !== '' && platformToolsUrl(process.platform) !== undefined
+        return { adb: 'missing', message: error.message, installable }
+      }
       if (error instanceof AdbFailedError) throw new RemoteError('devicePanel/adb-failed', error.message, {})
       throw error
     }
     if (output.exitCode !== 0) throw new RemoteError('devicePanel/adb-failed', failureText(output), {})
     return { adb: 'ready', devices: parseDevices(new TextDecoder().decode(output.stdout)) }
+  }
+
+  /**
+   * Download Google's latest platform-tools for this Host from dl.google.com and unpack them into the configured
+   * platform-tools directory, where the next adb run finds them. An earlier copy is replaced only after the new one
+   * unpacked.
+   * @param signal - request cancellation.
+   * @throws `devicePanel/install-failed` when no directory is configured, an install is already running, or the
+   * download or unpacking fails.
+   */
+  @Remote
+  async installAdb(signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
+    if (this.platformToolsDirectory === '') {
+      throw new RemoteError('devicePanel/install-failed', 'No platform-tools directory is configured', {})
+    }
+    if (this.installing) throw new RemoteError('devicePanel/install-failed', 'An install is already running', {})
+    this.installing = true
+    try {
+      await installPlatformTools({ directory: this.platformToolsDirectory, timeoutMs: this.installTimeoutMs }, signal)
+    } catch (error) {
+      signal.throwIfAborted()
+      throw new RemoteError('devicePanel/install-failed', error instanceof Error ? error.message : String(error), {})
+    } finally {
+      this.installing = false
+    }
   }
 
   /**

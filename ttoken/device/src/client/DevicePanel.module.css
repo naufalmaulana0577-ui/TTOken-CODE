@@ -234,6 +234,13 @@
   overflow-wrap: anywhere;
 }
 
+/* Google's terms under the install button. */
+.terms {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .controls {
   display: flex;
   flex: none;
@@ -308,6 +315,7 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.primary:disabled,
 .secondary:disabled {
   opacity: 0.5;
   cursor: default;

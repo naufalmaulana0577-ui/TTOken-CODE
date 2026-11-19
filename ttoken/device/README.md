@@ -13,7 +13,7 @@ The Device tab of the right sidebar lists the Android phones and emulators that 
 
 ## Use this package
 
-The web-app bundle loads it. Install Android platform-tools, turn on USB debugging on the phone and allow this computer, then open the Device entry from the right sidebar's guide. When `adbCommand` or `emulatorCommand` names the bare tool and it is not on PATH, the Host also tries the SDK in `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and Android Studio's default SDK directory. The device menu, and the panel while no device is attached, offer to start each Android Virtual Device; a started emulator keeps running after the app quits. Install scrcpy for the mirror window.
+The web-app bundle loads it with `platformToolsDirectory` set to `android-platform-tools` in the Harness home's `data` directory. Turn on USB debugging on the phone and allow this computer, then open the Device entry from the right sidebar's guide. Without adb, the panel offers "Install adb", which downloads Google's latest platform-tools archive for the Host from dl.google.com, unpacks it into `platformToolsDirectory`, and lists the devices again; an earlier copy is replaced only after the new archive unpacked with an adb inside it. When `adbCommand` names the bare tool, the Host resolves it on PATH, then tries the SDK in `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and Android Studio's default SDK directory, the folders winget, Scoop, Chocolatey, or Homebrew link programs into, and finally the installed copy. Each candidate resolves to a file before it runs, because Windows otherwise runs a missing program through `cmd.exe` and reports an ordinary failed run instead of a missing adb. The emulator gets the same SDK lookup. The device menu, and the panel while no device is attached, offer to start each Android Virtual Device; a started emulator keeps running after the app quits. Install scrcpy for the mirror window.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -22,6 +22,8 @@ The web-app bundle loads it. Install Android platform-tools, turn on USB debuggi
 | `emulatorCommand` | `emulator` | Android emulator executable |
 | `timeoutMs` | `15000` | Deadline of one adb run |
 | `maxScreenBytes` | `33554432` | Largest screenshot |
+| `platformToolsDirectory` | empty | Absolute Host directory that "Install adb" unpacks platform-tools into; empty offers no install |
+| `installTimeoutMs` | `300000` | Deadline of downloading and unpacking platform-tools |
 
 ## Model Experience
 
@@ -32,3 +34,5 @@ None: the package adds no tool and no prompt section. The note that "Ask the age
 - The screen is a PNG screenshot per second, not a video stream; scrcpy gives a smooth mirror.
 - `input text` types printable ASCII only.
 - iPhone simulators need a Mac with Xcode and are not offered.
+- "Install adb" unpacks with the `tar` that Windows 10 and macOS ship, and with `unzip` on Linux; it fetches Google's archive directly and does not use a system proxy.
+- Windows on Arm runs Google's x64 adb through emulation.

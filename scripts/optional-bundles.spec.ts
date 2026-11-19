@@ -175,7 +175,10 @@ describe('optional bundles', () => {
   it('offers the forge panel and model worktree tool together over one worktree service', () => {
     const name = '@deepseek-ai/dsh-experimental-forge-bundle'
     expect(OPTIONAL_BUNDLES).toContain(name)
-    for (const template of Object.values(PROFILE_TEMPLATES)) expect(template.bundles).not.toContain(name)
+    // TTOken Code: the web template selects it; every other template leaves it to the person.
+    for (const [profile, template] of Object.entries(PROFILE_TEMPLATES)) {
+      expect(template.bundles.includes(name)).toBe(profile === 'web')
+    }
     const rows = flattenRows(composeEntries([...shipped, bundle(name).patches]))
     for (const moduleName of [
       '@deepseek-ai/dsh-experimental-forge',

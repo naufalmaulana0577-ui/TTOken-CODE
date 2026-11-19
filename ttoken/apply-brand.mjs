@@ -1726,6 +1726,142 @@ editFile({
   pairs: DEVICE_LOCK_PAIRS,
 })
 
+// 28. Mode GitHub menyala untuk profil baru. Template profil `web` (desktop
+//      dan Web) ikut memuat bundel "Change requests & worktrees", jadi tab
+//      Issues, halaman Code review, dan worktree langsung ada. Bundel itu tetap
+//      opsional: bisa dimatikan di halaman Plugins, dan profil yang sudah ada
+//      tidak diubah. Gerbang isolasi produk default mencatat paket eksperimental
+//      yang sengaja dikirim menyala: bundel ini beserta paketnya, dan panel
+//      Perangkat dari aturan 27.
+editFile({
+  name: 'mode GitHub (template web)',
+  path: 'packages/util/official-bundles/src/bundles.ts',
+  pairs: [
+    [
+      `  web: {\n    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],\n  },\n`,
+      `  web: {\n    // TTOken Code: new web profiles start with the forge bundle (issues board, change requests, worktrees) on.\n`
+        + `    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle'],\n  },\n`,
+    ],
+    [
+      ` * [admission](../../../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md)).\n */\nexport const OPTIONAL_BUNDLES`,
+      ` * [admission](../../../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md)).\n`
+        + ` * TTOken Code: the \`web\` template also selects \`@deepseek-ai/dsh-experimental-forge-bundle\`, so a new \`web\`\n`
+        + ` * profile lists it switched on.\n */\nexport const OPTIONAL_BUNDLES`,
+    ],
+  ],
+})
+editFile({
+  name: 'mode GitHub (uji template)',
+  path: 'packages/util/official-bundles/tests/official-bundles.spec.ts',
+  pairs: [[
+    `      web: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] },\n`,
+    `      web: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle'] },\n`,
+  ]],
+})
+editFile({
+  name: 'mode GitHub (uji bundel opsional)',
+  path: 'scripts/optional-bundles.spec.ts',
+  pairs: [[
+    `    const name = '@deepseek-ai/dsh-experimental-forge-bundle'\n    expect(OPTIONAL_BUNDLES).toContain(name)\n`
+      + `    for (const template of Object.values(PROFILE_TEMPLATES)) expect(template.bundles).not.toContain(name)\n`,
+    `    const name = '@deepseek-ai/dsh-experimental-forge-bundle'\n    expect(OPTIONAL_BUNDLES).toContain(name)\n`
+      + `    // TTOken Code: the web template selects it; every other template leaves it to the person.\n`
+      + `    for (const [profile, template] of Object.entries(PROFILE_TEMPLATES)) {\n`
+      + `      expect(template.bundles.includes(name)).toBe(profile === 'web')\n    }\n`,
+  ]],
+})
+editFile({
+  name: 'mode GitHub (uji rescue)',
+  path: 'apps/cli/tests/built-bin.e2e.ts',
+  pairs: [[
+    `      expect(manifest.dsh.profile).toEqual({\n        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],\n      })\n`,
+    `      expect(manifest.dsh.profile).toEqual({\n`
+      + `        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle'],\n      })\n`,
+  ]],
+})
+editFile({
+  name: 'mode GitHub (roster uji klien)',
+  path: 'packages/test-support/client-runtime/src/assembly/bundle-roster.ts',
+  pairs: [[
+    ` * The \`web\` profile's bundle layers, in the order \`dsh --profile web\` applies them\n`
+      + ` * (\`PROFILE_TEMPLATES.web\` in \`@deepseek-ai/dsh-official-bundles\`).\n */\n`,
+    ` * The \`web\` profile's base bundle layers, in the order \`dsh --profile web\` applies them\n`
+      + ` * (\`PROFILE_TEMPLATES.web\` in \`@deepseek-ai/dsh-official-bundles\`). The TTOken Code template also selects the\n`
+      + ` * forge bundle, which this roster leaves out so client tests compose the base product.\n */\n`,
+  ]],
+})
+editFile({
+  name: 'mode GitHub (uji roster profil)',
+  path: 'packages/experimental/webworker-packer/tests/profile-image.spec.ts',
+  pairs: [[
+    `    expect(bundles).toEqual([...PROFILE_TEMPLATES.web!.bundles, ...OPTIONAL_BUNDLES])\n`,
+    `    expect(bundles).toEqual([...new Set([...PROFILE_TEMPLATES.web!.bundles, ...OPTIONAL_BUNDLES])])\n`,
+  ]],
+})
+editFile({
+  name: 'mode GitHub (gerbang isolasi produk)',
+  path: 'scripts/verify-default-product-isolation.ts',
+  pairs: [
+    [
+      ` * The one declared exception is a bundle the launcher names in \`OPTIONAL_BUNDLES\`: shipped for the person to\n`
+        + ` * switch on, selected by no shipped template, its own dependency graph outside the default product's.\n */\n`,
+      ` * One declared exception is a bundle the launcher names in \`OPTIONAL_BUNDLES\`: shipped for the person to\n`
+        + ` * switch on, selected by no shipped template, its own dependency graph outside the default product's. The other\n`
+        + ` * is the TTOken Code list in \`ttoken/default-experimental.json\`: experimental packages its product ships switched on.\n */\n`,
+    ],
+    [
+      `const EXTERNAL_KIT_PACKAGES = new Set(['@deepseek-ai/libreoffice-kit'])\n`,
+      `const EXTERNAL_KIT_PACKAGES = new Set(['@deepseek-ai/libreoffice-kit'])\n`
+        + `// Experimental packages TTOken Code ships switched on: the Android device panel in the Web composition, and the forge\n`
+        + `// bundle with the packages it composes, which the \`web\` template selects (ttoken/README.md, rules 27 and 28).\n`
+        + `const TTOKEN_DEFAULT_EXPERIMENTAL_FILE = 'ttoken/default-experimental.json'\n`,
+    ],
+    [
+      `export function verifyDefaultProductIsolation(root: string): ProductIsolationResult {\n  const failures: string[] = []\n`,
+      `export function verifyDefaultProductIsolation(root: string): ProductIsolationResult {\n  const failures: string[] = []\n`
+        + `  const admitted = ttokenDefaultExperimental(root)\n`,
+    ],
+    [
+      `    || display(pkg.directory).startsWith('packages/experimental/')\n  const add = `,
+      `    || display(pkg.directory).startsWith('packages/experimental/')\n`
+        + `  for (const name of admitted) {\n    const pkg = packages.get(name)\n    if (pkg === undefined || !isExperimental(pkg)) {\n`
+        + `      failures.push(\`\${TTOKEN_DEFAULT_EXPERIMENTAL_FILE}: \${name} is not an experimental workspace package\`)\n    }\n  }\n`
+        + `  const add = `,
+    ],
+    [
+      `    if (isExperimental(pkg)) {\n      failures.push(\`\${origin} -> \${pkg.manifest.name}: default product must not include experimental packages\`)\n`,
+      `    if (isExperimental(pkg)) {\n      if (admitted.has(pkg.manifest.name)) return\n`
+        + `      failures.push(\`\${origin} -> \${pkg.manifest.name}: default product must not include experimental packages\`)\n`,
+    ],
+    [
+      `    if (isExperimentalPackageName(packageName)) {\n`
+        + `      failures.push(\`\${origin} -> \${name}: default product must not include experimental packages\`)\n      return\n    }\n`,
+      `    if (isExperimentalPackageName(packageName)) {\n      if (!admitted.has(packageName)) {\n`
+        + `        failures.push(\`\${origin} -> \${name}: default product must not include experimental packages\`)\n      }\n`
+        + `      return\n    }\n`,
+    ],
+    [
+      `      if (optionalBundles.has(name)) failures.push(\`\${PROFILE_SOURCE}: optional bundle \${name} must not be a default bundle\`)\n`,
+      `      if (optionalBundles.has(name) && !admitted.has(name)) {\n`
+        + `        failures.push(\`\${PROFILE_SOURCE}: optional bundle \${name} must not be a default bundle\`)\n      }\n`,
+    ],
+    [
+      `function barePackageName(specifier: string): string {\n`,
+      `/**\n * Read the experimental packages TTOken Code ships switched on.\n`
+        + ` * @param root - repository root; a root without the list admits none.\n`
+        + ` * @returns the admitted package names.\n * @throws when the list is not a JSON array of strings.\n */\n`
+        + `function ttokenDefaultExperimental(root: string): ReadonlySet<string> {\n`
+        + `  const path = resolve(root, TTOKEN_DEFAULT_EXPERIMENTAL_FILE)\n`
+        + `  if (!existsSync(path)) return new Set()\n`
+        + `  const names: unknown = JSON.parse(readFileSync(path, 'utf8'))\n`
+        + `  if (!Array.isArray(names) || !names.every((name): name is string => typeof name === 'string')) {\n`
+        + `    throw new Error(\`\${TTOKEN_DEFAULT_EXPERIMENTAL_FILE}: expected a JSON array of package names\`)\n  }\n`
+        + `  return new Set(names)\n}\n\n`
+        + `function barePackageName(specifier: string): string {\n`,
+    ],
+  ],
+})
+
 // 25. Diff: baris yang ditambah blok hijau, yang dihapus blok merah. Teks kode
 //     tetap warna teks utama supaya terbaca; tanda + dan - memakai warna blok.
 editFile({

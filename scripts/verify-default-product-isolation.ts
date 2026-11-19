@@ -1,7 +1,8 @@
 /**
  * Keep experimental packages outside default installations, runtime imports, and shipped compositions.
- * The one declared exception is a bundle the launcher names in `OPTIONAL_BUNDLES`: shipped for the person to
- * switch on, selected by no shipped template, its own dependency graph outside the default product's.
+ * One declared exception is a bundle the launcher names in `OPTIONAL_BUNDLES`: shipped for the person to
+ * switch on, selected by no shipped template, its own dependency graph outside the default product's. The other
+ * is the TTOken Code list in `ttoken/default-experimental.json`: experimental packages its product ships switched on.
  */
 
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
@@ -23,6 +24,9 @@ import {
 import { isExperimentalPackageName } from './experimental-package-policy.ts'
 // The independently published entry package owns platform-engine dependencies.
 const EXTERNAL_KIT_PACKAGES = new Set(['@deepseek-ai/libreoffice-kit'])
+// Experimental packages TTOken Code ships switched on: the Android device panel in the Web composition, and the forge
+// bundle with the packages it composes, which the `web` template selects (ttoken/README.md, rules 27 and 28).
+const TTOKEN_DEFAULT_EXPERIMENTAL_FILE = 'ttoken/default-experimental.json'
 const PROFILE_SOURCE = 'packages/util/official-bundles/src/bundles.ts'
 const PRESET_PATTERN = 'packages/bundle/web-app/presets/*.patch.yml'
 const RUNTIME_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
@@ -60,6 +64,7 @@ export interface ProductIsolationResult {
  */
 export function verifyDefaultProductIsolation(root: string): ProductIsolationResult {
   const failures: string[] = []
+  const admitted = ttokenDefaultExperimental(root)
   const packages = new Map<string, Package>()
   const directories = new Map<string, Package>()
   const display = (path: string): string => relative(root, path).replaceAll('\\', '/')
@@ -109,8 +114,15 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
   let webPluginCount = 0
   const isExperimental = (pkg: Package): boolean => isExperimentalPackageName(pkg.manifest.name)
     || display(pkg.directory).startsWith('packages/experimental/')
+  for (const name of admitted) {
+    const pkg = packages.get(name)
+    if (pkg === undefined || !isExperimental(pkg)) {
+      failures.push(`${TTOKEN_DEFAULT_EXPERIMENTAL_FILE}: ${name} is not an experimental workspace package`)
+    }
+  }
   const add = (pkg: Package, origin: string): void => {
     if (isExperimental(pkg)) {
+      if (admitted.has(pkg.manifest.name)) return
       failures.push(`${origin} -> ${pkg.manifest.name}: default product must not include experimental packages`)
     } else if (!visited.has(pkg.directory)) {
       visited.add(pkg.directory)
@@ -137,7 +149,9 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
     }
     const packageName = barePackageName(name)
     if (isExperimentalPackageName(packageName)) {
-      failures.push(`${origin} -> ${name}: default product must not include experimental packages`)
+      if (!admitted.has(packageName)) {
+        failures.push(`${origin} -> ${name}: default product must not include experimental packages`)
+      }
       return
     }
     const pkg = packages.get(packageName)
@@ -246,7 +260,9 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
       if (packages.get(name)?.manifest.dsh?.bundle?.patch === undefined) {
         failures.push(`${PROFILE_SOURCE}: default bundle ${name} must declare dsh.bundle.patch`)
       }
-      if (optionalBundles.has(name)) failures.push(`${PROFILE_SOURCE}: optional bundle ${name} must not be a default bundle`)
+      if (optionalBundles.has(name) && !admitted.has(name)) {
+        failures.push(`${PROFILE_SOURCE}: optional bundle ${name} must not be a default bundle`)
+      }
     }
     const webLayers = selection.webBundles.flatMap((name) => {
       const pkg = packages.get(name)
@@ -317,6 +333,22 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
   }
   return { failures: [...new Set(failures)], packageCount: visited.size,
     sourceCount: sources.size, configCount: configs.size, webPluginCount }
+}
+
+/**
+ * Read the experimental packages TTOken Code ships switched on.
+ * @param root - repository root; a root without the list admits none.
+ * @returns the admitted package names.
+ * @throws when the list is not a JSON array of strings.
+ */
+function ttokenDefaultExperimental(root: string): ReadonlySet<string> {
+  const path = resolve(root, TTOKEN_DEFAULT_EXPERIMENTAL_FILE)
+  if (!existsSync(path)) return new Set()
+  const names: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  if (!Array.isArray(names) || !names.every((name): name is string => typeof name === 'string')) {
+    throw new Error(`${TTOKEN_DEFAULT_EXPERIMENTAL_FILE}: expected a JSON array of package names`)
+  }
+  return new Set(names)
 }
 
 function barePackageName(specifier: string): string {

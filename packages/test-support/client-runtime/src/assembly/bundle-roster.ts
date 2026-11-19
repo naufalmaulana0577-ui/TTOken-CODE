@@ -23,8 +23,9 @@ import { exactPackageSpecifier, parseDshClient } from '@deepseek-ai/dsh-client-m
 import { ClientRoster, type ClientRosterRow } from './roster.ts'
 
 /**
- * The `web` profile's bundle layers, in the order `dsh --profile web` applies them
- * (`PROFILE_TEMPLATES.web` in `@deepseek-ai/dsh-official-bundles`).
+ * The `web` profile's base bundle layers, in the order `dsh --profile web` applies them
+ * (`PROFILE_TEMPLATES.web` in `@deepseek-ai/dsh-official-bundles`). The TTOken Code template also selects the
+ * forge bundle, which this roster leaves out so client tests compose the base product.
  */
 export const WEB_PROFILE_BUNDLES: readonly string[] = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']
 

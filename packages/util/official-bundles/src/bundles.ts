@@ -12,7 +12,8 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'],
   },
   web: {
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
+    // TTOken Code: new web profiles start with the forge bundle (issues board, change requests, worktrees) on.
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle'],
   },
   headless: {
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
@@ -51,6 +52,8 @@ export const DEFAULT_PROFILE_BUNDLES: readonly string[] = ['@deepseek-ai/dsh-bas
  * template, and offered switched off by the plugin manager when listed
  * ([rationale](../../../../.agents/notes/implemented/process/2026-09-15-shipped-optional-bundles.md),
  * [admission](../../../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md)).
+ * TTOken Code: the `web` template also selects `@deepseek-ai/dsh-experimental-forge-bundle`, so a new `web`
+ * profile lists it switched on.
  */
 export const OPTIONAL_BUNDLES: readonly string[] = [
   '@deepseek-ai/dsh-personalized-recommendations',

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Android device",
+    "description": "Shows and controls an Android phone or emulator connected to this computer through adb, and hands it to the agent. Needs Android platform-tools; scrcpy adds a mirror window."
+  }
+}

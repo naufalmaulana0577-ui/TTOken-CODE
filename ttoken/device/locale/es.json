@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Dispositivo Android",
+    "description": "Muestra y controla con adb un teléfono o emulador Android conectado a este equipo, y lo entrega al agente. Requiere Android platform-tools; con scrcpy se abre una ventana espejo."
+  }
+}

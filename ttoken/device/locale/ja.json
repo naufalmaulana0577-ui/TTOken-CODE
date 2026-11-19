@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Android デバイス",
+    "description": "このコンピューターに接続した Android スマートフォンやエミュレーターを adb で表示・操作し、エージェントに渡します。Android platform-tools が必要です。scrcpy があればミラーウィンドウも開けます。"
+  }
+}

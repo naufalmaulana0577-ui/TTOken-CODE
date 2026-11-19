@@ -335,6 +335,9 @@
 
     - id: ui-sidebar-terminal
       name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'
+    # TTOken Code: the right Sidebar's Android device tab, over adb on the Host.
+    - id: android-device
+      name: '@deepseek-ai/dsh-experimental-android-device'
     # The right Sidebar's workspace file tree tab type.
     - id: ui-sidebar-files
       name: '@deepseek-ai/dsh-client-ui-sidebar-files'

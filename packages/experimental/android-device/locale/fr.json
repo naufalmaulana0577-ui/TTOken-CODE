@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Appareil Android",
+    "description": "Affiche et pilote via adb un téléphone ou un émulateur Android branché sur cet ordinateur, et le confie à l’agent. Nécessite Android platform-tools ; scrcpy ajoute une fenêtre miroir."
+  }
+}

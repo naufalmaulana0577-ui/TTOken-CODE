@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Android-Gerät",
+    "description": "Zeigt und steuert über adb ein Android-Telefon oder einen Emulator an diesem Computer und übergibt es an den Agenten. Benötigt die Android platform-tools; mit scrcpy gibt es ein Spiegelfenster."
+  }
+}

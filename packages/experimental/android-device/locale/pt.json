@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Dispositivo Android",
+    "description": "Mostra e controla pelo adb um celular ou emulador Android conectado a este computador e o entrega ao agente. Requer o Android platform-tools; com o scrcpy abre uma janela espelho."
+  }
+}

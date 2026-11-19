@@ -1159,6 +1159,18 @@ function forgePart(path) {
   return readFileSync(join(ROOT, 'ttoken', 'forge', path), 'utf8')
 }
 
+/**
+ * Baca berkas paket perangkat Android dari `ttoken/device/`.
+ * @param path Path relatif terhadap `ttoken/device/`.
+ * @returns Isi berkas.
+ */
+function devicePart(path) {
+  return readFileSync(join(ROOT, 'ttoken', 'device', path), 'utf8')
+}
+
+/** Potongan lockfile untuk paket perangkat Android, dihasilkan pnpm (lihat aturan 27). */
+const DEVICE_LOCK_PAIRS = JSON.parse(readFileSync(join(ROOT, 'ttoken', 'device', 'lock-pairs.json'), 'utf8'))
+
 // 22. Palet TTOken Code dari desain desktop: permukaan putih hangat dengan tombol
 //     hitam di skema terang, permukaan hitam netral di skema gelap. Dipasang
 //     sebagai satu lapisan override token, jadi semua komponen ikut tanpa CSS per komponen.
@@ -1644,6 +1656,74 @@ editFile({
       `    name: 'plugins.row.config', key: WORKTREE_ROW_KEY, locale: NS, inject: () => worktreeSettings.inject(),\n  }, WorktreeSettings))\n  installTtokenIssues(ctx, openLink)\n}\n`,
     ],
   ],
+})
+
+// 27. Panel Perangkat Android (paket baru `packages/experimental/android-device`).
+//      Tab "Device" di sidebar kanan: daftar perangkat dari adb di komputer ini,
+//      layar perangkat (klik = tap, seret = swipe), tombol Back/Home/Recent,
+//      ketik teks, jendela cermin scrcpy, dan catatan di draf pesan agar agen
+//      memakai perangkat lewat adb. Dimuat oleh bundel web-app, jadi ada di
+//      desktop tanpa harus dinyalakan. Lockfile memuat importer paket ini
+//      (dihasilkan `pnpm install --lockfile-only`).
+const DEVICE_DIR = 'packages/experimental/android-device'
+for (const file of [
+  'package.json', 'README.md', 'tsconfig.json', 'tsconfig.host.json', 'tsconfig.client.json', 'tsdown.config.ts',
+  'locale/de.json', 'locale/en.json', 'locale/es.json', 'locale/fr.json', 'locale/ja.json', 'locale/pt.json', 'locale/ru.json',
+  'locale/zh.json', 'src/index.ts', 'src/adb.ts', 'src/types.ts', 'src/css-modules.d.ts', 'src/client/index.ts',
+  'src/client/mount.ts', 'src/client/DevicePanel.tsx', 'src/client/DevicePanel.module.css', 'src/client/locales.ts',
+  'tests/adb.spec.ts',
+]) {
+  writeGenerated(`perangkat (${file})`, `${DEVICE_DIR}/${file}`, devicePart(file))
+}
+editFile({
+  name: 'perangkat (alias path)',
+  path: 'tsconfig.base.json',
+  pairs: [[
+    `      "@deepseek-ai/dsh-experimental-client-ui-forge/client": ["./packages/experimental/client-ui-forge/src/client/index.ts"],\n`,
+    `      "@deepseek-ai/dsh-experimental-client-ui-forge/client": ["./packages/experimental/client-ui-forge/src/client/index.ts"],\n`
+      + `      "@deepseek-ai/dsh-experimental-android-device": ["./packages/experimental/android-device/src/index.ts"],\n`
+      + `      "@deepseek-ai/dsh-experimental-android-device/types": ["./packages/experimental/android-device/src/types.ts"],\n`
+      + `      "@deepseek-ai/dsh-experimental-android-device/client": ["./packages/experimental/android-device/src/client/index.ts"],\n`,
+  ]],
+})
+editFile({
+  name: 'perangkat (agregat Host)',
+  path: 'tsconfig.host.json',
+  pairs: [[
+    `    { "path": "./packages/experimental/client-ui-forge/tsconfig.host.json" },\n`,
+    `    { "path": "./packages/experimental/client-ui-forge/tsconfig.host.json" },\n    { "path": "./packages/experimental/android-device/tsconfig.host.json" },\n`,
+  ]],
+})
+editFile({
+  name: 'perangkat (agregat Client)',
+  path: 'tsconfig.client.json',
+  pairs: [[
+    `    { "path": "./packages/experimental/client-ui-forge/tsconfig.client.json" },\n`,
+    `    { "path": "./packages/experimental/client-ui-forge/tsconfig.client.json" },\n    { "path": "./packages/experimental/android-device/tsconfig.client.json" },\n`,
+  ]],
+})
+editFile({
+  name: 'perangkat (bundel web-app)',
+  path: 'packages/bundle/web-app/package.json',
+  pairs: [[
+    `    "@deepseek-ai/dsh-client-ui-sidebar-terminal": "workspace:*",\n`,
+    `    "@deepseek-ai/dsh-client-ui-sidebar-terminal": "workspace:*",\n    "@deepseek-ai/dsh-experimental-android-device": "workspace:*",\n`,
+  ]],
+})
+editFile({
+  name: 'perangkat (profil web-app)',
+  path: 'packages/bundle/web-app/cordis.patch.yml',
+  pairs: [[
+    `    - id: ui-sidebar-terminal\n      name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'\n`,
+    `    - id: ui-sidebar-terminal\n      name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'\n`
+      + `    # TTOken Code: the right Sidebar's Android device tab, over adb on the Host.\n`
+      + `    - id: android-device\n      name: '@deepseek-ai/dsh-experimental-android-device'\n`,
+  ]],
+})
+editFile({
+  name: 'perangkat (lockfile)',
+  path: 'pnpm-lock.yaml',
+  pairs: DEVICE_LOCK_PAIRS,
 })
 
 // 25. Diff: baris yang ditambah blok hijau, yang dihapus blok merah. Teks kode

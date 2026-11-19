@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Android 设备",
+    "description": "通过 adb 显示并操作连接到这台电脑的 Android 手机或模拟器，并可交给智能体使用。需要 Android platform-tools；装有 scrcpy 时可打开镜像窗口。"
+  }
+}

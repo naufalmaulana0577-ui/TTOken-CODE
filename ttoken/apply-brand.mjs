@@ -166,6 +166,36 @@ function replaceRegion(rule) {
 }
 
 /**
+ * Ganti baris utuh yang diawali awalan tertentu dengan baris baru.
+ *
+ * Tiap awalan harus mengawali tepat satu baris. Baris yang sudah sama dengan
+ * baris baru dianggap sudah diterapkan.
+ * @param {{ name: string, path: string, lines: [string, string][] }} rule Aturan penggantian.
+ * @returns {void}
+ */
+function replaceLines(rule) {
+  const absolute = join(ROOT, rule.path)
+  const lines = readFileSync(absolute, 'utf8').split('\n')
+  let changed = 0
+  for (const [prefix, line] of rule.lines) {
+    const found = lines.flatMap((text, index) => (text.startsWith(prefix) ? [index] : []))
+    if (found.length !== 1) {
+      failures.push(`${rule.name}: tepat satu baris harus diawali ${JSON.stringify(prefix)} di ${rule.path}; upstream berubah, perbarui aturannya`)
+      return
+    }
+    if (lines[found[0]] === line) continue
+    if (CHECK) {
+      failures.push(`${rule.name}: ${rule.path} belum disunting`)
+      return
+    }
+    lines[found[0]] = line
+    changed += 1
+  }
+  if (changed > 0 && !DRY) writeFileSync(absolute, lines.join('\n'))
+  report.push(changed === 0 ? `${rule.name}: sudah diterapkan` : `${rule.name}: ${changed} baris diganti${DRY ? ' (rencana)' : ''}`)
+}
+
+/**
  * Tulis sebuah file hasil bila isinya berbeda.
  * @param {string} name Nama aturan.
  * @param {string} path Path relatif tujuan.
@@ -2472,6 +2502,34 @@ editFile({
     `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-alias-interactive-bg-hover)')\n`,
     `    expect(rowDeclarations('.sessionRow.selected')?.get('background-color'))\n      .toBe('var(--dsw-specific-sidebar-nav-item-active)')\n`,
   ]],
+})
+
+// 32. Ikon yang terbaca sebagai milik DeepSeek diganti gambar TTOken sendiri: mode agen
+//     (robot), Plan (rute), penalaran (bola lampu), sesi baru (plus dalam kotak), Plugins
+//     (keping puzzle), dan keempat ikon izin (mata, pensil, gembok terbuka, dan bingkai
+//     pindai bercentang). Gambar sprite tinggal di ttoken/client/icons/*.svg dengan garis
+//     1 px; aturan ini memasang lebar garis sprite (1 atau 1,3 px) di akar SVG-nya.
+const TTOKEN_GLYPHS = [
+  ['agent-preset-outline', 16],
+  ['plan-outline', 14],
+  ['think-outline', 16],
+  ['new-chat-outline', 16],
+  ['plugin-pinwheel-outline', 16],
+]
+replaceLines({
+  name: 'ikon (sprite)',
+  path: 'packages/client/ui-primitives/src/icons/artwork.ts',
+  lines: TTOKEN_GLYPHS.map(([glyph, size]) => {
+    const svg = clientPart(`icons/${glyph}.svg`).trim().replace('stroke-width="1"', 'stroke-width="${strokeWidth}"')
+    return [`  '${glyph}': { `, `  '${glyph}': { size: ${size}, svg: strokeWidth => \`${svg}\` },`]
+  }),
+})
+replaceRegion({
+  name: 'ikon (izin)',
+  path: 'packages/client/ui-primitives/src/PermissionIcon.tsx',
+  start: '}\n\nfunction ReadOnlyArtwork(',
+  end: '/**\n * Render the read-only permission icon with a one-pixel stroke.\n',
+  content: `}\n\n${clientPart('icons/PermissionIcon.tsx.part')}\n`,
 })
 
 for (const line of report) console.log(line)

@@ -6,11 +6,13 @@ interface PermissionIconArtworkProps extends IconProps {
   strokeWidth: number
 }
 
+// TTOken Code artwork: an eye for reading, a pencil for workspace writes, an
+// open padlock for full access, and a checked viewfinder for automatic review.
 function ReadOnlyArtwork({ size = 16, className, strokeWidth }: PermissionIconArtworkProps): ReactNode {
   return (
     <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" strokeWidth={strokeWidth}>
-      <path vectorEffect="non-scaling-stroke" d="M5.08545 8.13775L7.18455 10.2368C7.26636 10.3187 7.4003 10.3142 7.47649 10.2271L11.5148 5.61194" stroke="currentColor" />
-      <path vectorEffect="non-scaling-stroke" d="M6.59624 2.14853C7.50155 1.80917 8.49914 1.80919 9.40444 2.14859L14 4V7.11961C14 11.6089 10.5565 13.5975 8.00035 14.5779C5.44423 13.5975 2 11.6089 2 7.11961V4L6.59624 2.14853Z" stroke="currentColor" strokeLinejoin="round" />
+      <path vectorEffect="non-scaling-stroke" d="M1.75 8C3.35 5.1 5.45 3.5 8 3.5C10.55 3.5 12.65 5.1 14.25 8C12.65 10.9 10.55 12.5 8 12.5C5.45 12.5 3.35 10.9 1.75 8Z" stroke="currentColor" strokeLinejoin="round" />
+      <circle vectorEffect="non-scaling-stroke" cx="8" cy="8" r="2" stroke="currentColor" />
     </svg>
   )
 }
@@ -18,9 +20,8 @@ function ReadOnlyArtwork({ size = 16, className, strokeWidth }: PermissionIconAr
 function WorkspaceWriteArtwork({ size = 16, className, strokeWidth }: PermissionIconArtworkProps): ReactNode {
   return (
     <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" strokeWidth={strokeWidth}>
-      <path vectorEffect="non-scaling-stroke" d="M14 6.68994V4L9.40444 2.14859C8.49914 1.80919 7.50155 1.80917 6.59624 2.14853L2 4V7.11961C2 11.6089 5.44423 13.5975 8.00035 14.5779C8.404 14.4231 8.8303 14.2432 9.264 14.035" stroke="currentColor" strokeLinejoin="round" />
-      <path vectorEffect="non-scaling-stroke" d="M5.5 6.5H10.5M5.5 10H8.5" stroke="currentColor" />
-      <path vectorEffect="non-scaling-stroke" d="M10.37865 13.47795L14.23015 8.23882M12.5 13H15.5" stroke="currentColor" />
+      <path vectorEffect="non-scaling-stroke" d="M2.75 13.25V10.5L10.35 2.9C10.94 2.31 11.89 2.31 12.47 2.9L13.1 3.53C13.69 4.11 13.69 5.06 13.1 5.65L5.5 13.25Z" stroke="currentColor" strokeLinejoin="round" />
+      <path vectorEffect="non-scaling-stroke" d="M9 4.25L11.75 7" stroke="currentColor" strokeLinecap="round" />
     </svg>
   )
 }
@@ -28,9 +29,9 @@ function WorkspaceWriteArtwork({ size = 16, className, strokeWidth }: Permission
 function FullAccessArtwork({ size = 16, className, strokeWidth }: PermissionIconArtworkProps): ReactNode {
   return (
     <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" strokeWidth={strokeWidth}>
-      <path vectorEffect="non-scaling-stroke" d="M6.59624 2.14853C7.50155 1.80917 8.49914 1.80919 9.40444 2.14859L14 4V7.11961C14 11.6089 10.5565 13.5975 8.00035 14.5779C5.44423 13.5975 2 11.6089 2 7.11961V4L6.59624 2.14853Z" stroke="currentColor" strokeLinejoin="round" />
-      <path vectorEffect="non-scaling-stroke" d="M8 4.5V10" stroke="currentColor" />
-      <path vectorEffect="non-scaling-stroke" d="M8 11V12" stroke="currentColor" />
+      <rect vectorEffect="non-scaling-stroke" x="3" y="7.25" width="10" height="7" rx="2" stroke="currentColor" />
+      <path vectorEffect="non-scaling-stroke" d="M5.5 7.25V4.75C5.5 3.37 6.62 2.25 8 2.25C9.13 2.25 10.08 3 10.39 4.03" stroke="currentColor" strokeLinecap="round" />
+      <path vectorEffect="non-scaling-stroke" d="M8 10V11.5" stroke="currentColor" strokeLinecap="round" />
     </svg>
   )
 }
@@ -38,8 +39,8 @@ function FullAccessArtwork({ size = 16, className, strokeWidth }: PermissionIcon
 function AutoReviewArtwork({ size = 16, className, strokeWidth }: PermissionIconArtworkProps): ReactNode {
   return (
     <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" strokeWidth={strokeWidth}>
-      <path vectorEffect="non-scaling-stroke" d="M6.59624 2.14853C7.50155 1.80917 8.49914 1.80919 9.40444 2.14859L14 4V7.11961C14 11.6089 10.5565 13.5975 8.00035 14.5779C5.44423 13.5975 2 11.6089 2 7.11961V4L6.59624 2.14853Z" stroke="currentColor" strokeLinejoin="round" />
-      <path vectorEffect="non-scaling-stroke" d="M5.75 10.15L8 4.95L10.25 10.15M6.5 8.5H9.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      <path vectorEffect="non-scaling-stroke" d="M2.25 5.25V3.75C2.25 2.92 2.92 2.25 3.75 2.25H5.25M10.75 2.25H12.25C13.08 2.25 13.75 2.92 13.75 3.75V5.25M13.75 10.75V12.25C13.75 13.08 13.08 13.75 12.25 13.75H10.75M5.25 13.75H3.75C2.92 13.75 2.25 13.08 2.25 12.25V10.75" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      <path vectorEffect="non-scaling-stroke" d="M5.5 8.1L7.25 9.85L10.5 6.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

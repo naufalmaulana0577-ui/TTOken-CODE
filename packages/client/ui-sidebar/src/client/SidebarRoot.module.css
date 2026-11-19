@@ -888,3 +888,69 @@
     transition-duration: 0s;
   }
 }
+
+/* TTOken Code: the light redesign's sidebar. An ink lockup with the product
+   name in Archivo, an ink New session button that always shows its shortcut,
+   and taller navigation rows whose active row is white on the paper column.
+   A hairline separates the column from the conversation. */
+.root {
+  border-right: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.brandMark svg path,
+.railMark svg path {
+  fill: currentColor;
+}
+
+.brandName {
+  font-family: var(--dsw-font-family-brand);
+  font-stretch: 125%;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.fallbackBrandName {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.localBuildTitle {
+  font-size: 13px;
+  line-height: 15px;
+}
+
+.root:not(.collapsed) .newSession {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+@media (hover: hover) {
+  .root:not(.collapsed) .newSession:hover {
+    background: var(--dsw-alias-button-primary-hover);
+  }
+}
+
+.root:not(.collapsed) .newSessionContent {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.root:not(.collapsed) .newSessionShortcut {
+  opacity: 1;
+  color: color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 72%, transparent);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.panelRow {
+  min-height: 38px;
+  gap: 12px;
+}
+
+.panelEntryActive {
+  background-color: var(--dsw-specific-sidebar-nav-item-active);
+}

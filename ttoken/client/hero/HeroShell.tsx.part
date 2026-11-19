@@ -1,0 +1,36 @@
+/** Hero chrome props; the workspace row rides the InputBar accessory hole. */
+export interface HeroShellProps {
+  /** The owner's locale seat, passed down as a plain prop. */
+  t: HeroTranslate
+  /** Title of the chosen Workspace, named in the default headline; absent before one is chosen. */
+  workspace?: string | undefined
+  /** Text shown instead of the default headline and guidance line. */
+  headline?: string | undefined
+  /** Overlay content after the stack (modals). */
+  children?: ReactNode
+}
+
+/**
+ * Render the hero chrome: a headline that names the chosen Workspace and one
+ * line of guidance under it (no composer, no workspace row).
+ * @param props - see {@link HeroShellProps}.
+ * @returns the hero element tree.
+ */
+export function HeroShell({ t, workspace, headline, children }: HeroShellProps) {
+  return (
+    <div className={css.root}>
+      <div className={css.stack}>
+        <div className={css.headline}>
+          <h1 className={css.title}>
+            {headline ?? (workspace === undefined ? t('hero.headline') : t('hero.headlineWorkspace', { name: workspace }))}
+          </h1>
+          {headline === undefined && <p className={css.subtitle}>{t('hero.subtitle')}</p>}
+        </div>
+        <div className={css.body}>
+          {/* The composer remains mounted outside this component. */}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}

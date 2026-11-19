@@ -63,7 +63,7 @@ export default defineConfig([
         plugins: [{
           name: 'desktop-shell-assets',
           async generateBundle() {
-            for (const name of ['design-platform.css', 'brand-font.css', 'montserrat-regular.woff2', 'montserrat-light.woff2', 'montserrat-medium.woff2', 'Montserrat-OFL.txt', 'inter-latin-wght.woff2', 'inter-latin-ext-wght.woff2', 'jetbrains-mono-latin-wght.woff2', 'jetbrains-mono-latin-ext-wght.woff2', 'Inter-OFL.txt', 'JetBrainsMono-OFL.txt']) {
+            for (const name of ['design-platform.css', 'brand-font.css', 'montserrat-regular.woff2', 'montserrat-light.woff2', 'montserrat-medium.woff2', 'Montserrat-OFL.txt', 'inter-latin-wght.woff2', 'inter-latin-ext-wght.woff2', 'archivo-latin-wdth.woff2', 'archivo-latin-ext-wdth.woff2', 'ibm-plex-mono-latin-400.woff2', 'ibm-plex-mono-latin-ext-400.woff2', 'ibm-plex-mono-latin-500.woff2', 'ibm-plex-mono-latin-ext-500.woff2', 'ibm-plex-mono-latin-600.woff2', 'ibm-plex-mono-latin-ext-600.woff2', 'Inter-OFL.txt', 'Archivo-OFL.txt', 'IBMPlexMono-OFL.txt']) {
               this.emitFile({
                 type: 'asset',
                 fileName: name,

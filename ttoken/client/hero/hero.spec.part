@@ -1,0 +1,19 @@
+describe('Hero headline', () => {
+  it('names the chosen Workspace and adds one line of guidance', () => {
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} workspace="toko-kopi" />)
+    expect(view.getByRole('heading', { name: 'What should we build in toko-kopi?' })).toBeTruthy()
+    expect(view.getByText('Describe a change, mention files with @, or pick up an issue from GitHub.')).toBeTruthy()
+  })
+
+  it('asks without a Workspace name before one is chosen', () => {
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
+    expect(view.getByRole('heading', { name: 'What should we build?' })).toBeTruthy()
+  })
+
+  it('shows an owner headline instead of the default headline and guidance', () => {
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} workspace="toko-kopi" headline="Review demo #42" />)
+    expect(view.getByRole('heading', { name: 'Review demo #42' })).toBeTruthy()
+    expect(view.queryByText(/What should we build/)).toBeNull()
+    expect(view.queryByText(/Describe a change/)).toBeNull()
+  })
+})

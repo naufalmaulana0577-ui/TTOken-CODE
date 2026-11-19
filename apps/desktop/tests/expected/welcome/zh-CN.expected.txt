@@ -1,6 +1,4 @@
 TTOken Code
 TTOken Code
-欢迎使用 TTOken Code
-组装无限可能，共探智能上限
-登录
+按 token 付费的编程智能体。
 添加 API Key

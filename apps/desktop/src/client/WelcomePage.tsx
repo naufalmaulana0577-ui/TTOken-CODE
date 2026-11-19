@@ -177,11 +177,11 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     {expiryNotice && <Toast text={m.welcomeSessionExpired} onDone={() => { setExpiryNotice(false) }} />}
     <div className="titlebar" aria-hidden="true" />
     <main className="welcome" aria-labelledby={heading}>
-      <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" hidden={page === 'entry'} />
+      {page === 'entry' ? null : <svg className="brand" viewBox="0 0 56 48" aria-hidden="true"><path d="M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z" fill="currentColor" /><path d="M36 37H46A4 4 0 0 1 50 41V41A4 4 0 0 1 46 45H36A4 4 0 0 1 32 41V41A4 4 0 0 1 36 37Z" fill="currentColor" /></svg>}
       <div id="tagline" className="tagline" hidden={page !== 'entry'}>
-        <img className="mark" src="assets/welcome-mark.svg" alt="" width="96" height="82" />
+        <svg className="mark" viewBox="0 0 56 48" aria-hidden="true"><path d="M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z" fill="currentColor" /><path d="M36 37H46A4 4 0 0 1 50 41V41A4 4 0 0 1 46 45H36A4 4 0 0 1 32 41V41A4 4 0 0 1 36 37Z" fill="currentColor" /></svg>
         <h1 id="welcome-heading">{m.welcomeBrand}</h1>
-        <p id="welcome-description">{m.welcomeDescription}</p>
+        <p id="welcome-description">{m.welcomeTagline}</p>
       </div>
       <form id="key-form" className="key-form" hidden={page !== 'key'} noValidate onSubmit={(event) => { void saveKey(event) }} aria-busy={busy}>
         <header className="key-heading"><h1 id="key-title">{m.welcomeKeyTitle}</h1><p id="key-description">{m.welcomeKeyDescription}</p></header>
@@ -212,8 +212,9 @@ export function Welcome({ api }: { api: WelcomeApi }) {
           onClick={() => { void cancel() }}>{m.welcomeAuthCancel}</button>
       </div>
       <div id="entry-actions" className="actions" hidden={page !== 'entry'}>
-        <button id="sign-in" className="primary" type="button" hidden={!TTOKEN_ACCOUNT_LOGIN} onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start() }}>{m.welcomeSignIn}</button>
+        <button id="sign-in" className="primary" type="button" hidden={!TTOKEN_ACCOUNT_LOGIN} onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start() }}><svg className="button-mark" viewBox="0 0 56 48" aria-hidden="true"><path d="M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z" fill="#FFB21A" /><path d="M36 37H46A4 4 0 0 1 50 41V41A4 4 0 0 1 46 45H36A4 4 0 0 1 32 41V41A4 4 0 0 1 36 37Z" fill="#FFB21A" /></svg>{m.welcomeSignIn}</button>
         <button ref={keyButton} id="api-key" className={TTOKEN_ACCOUNT_LOGIN ? 'secondary' : 'primary'} type="button" onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'api-key' }); navigate('key') }}>{m.welcomeApiKey}</button>
+        <p className="new-account">{m.welcomeNewAccount.split('ttoken.dev').flatMap((part, index) => index === 0 ? [part] : [<strong key={index}>ttoken.dev</strong>, part])}</p>
       </div>
       <div id="key-actions" className="actions" hidden={page !== 'key'}>
         <button id="save-key" className="primary" type="submit" form="key-form" disabled={busy || draft.trim() === ''}>{m.welcomeKeySave}</button>
@@ -223,6 +224,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
           setDraft(''); setError(''); focusEntry.current = true; navigate('entry')
         }}>{m.welcomeKeyBack}</button>
       </div>
+      <p className="attribution">{m.welcomeDescription}</p>
     </main>
   </>
 }

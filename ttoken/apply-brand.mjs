@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -365,6 +365,45 @@ function setLocaleValues(rule) {
   report.push(pending === 0 ? `${rule.name}: sudah diterapkan` : `${rule.name}: ${pending} nilai diganti${DRY ? ' (rencana)' : ''}`)
 }
 
+/**
+ * Sisipkan satu kunci baru ke setiap kamus bahasa dalam satu file, tepat setelah baris kunci jangkar.
+ *
+ * Nilai diberikan berurutan sesuai kemunculan jangkar di file. Kunci yang sudah ada di setiap
+ * kamus berarti aturan sudah diterapkan; jumlah lain berarti upstream atau aturan berubah.
+ * Gaya kunci (bertanda kutip atau tidak) mengikuti baris jangkar.
+ * @param {{ name: string, path: string, after: string, key: string, values: string[] }} rule Aturan penyisipan.
+ * @returns {void}
+ */
+function insertLocaleKey(rule) {
+  const absolute = join(ROOT, rule.path)
+  const original = readFileSync(absolute, 'utf8')
+  const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const existing = original.match(new RegExp(`^\\s*(?:'${escape(rule.key)}'|${escape(rule.key)})\\s*:`, 'gm'))?.length ?? 0
+  if (existing === rule.values.length) {
+    report.push(`${rule.name}: sudah diterapkan`)
+    return
+  }
+  const anchor = new RegExp(`^(\\s*)('${escape(rule.after)}'|${escape(rule.after)})(\\s*:.*,)$`, 'gm')
+  const anchors = original.match(anchor)?.length ?? 0
+  if (existing !== 0 || anchors !== rule.values.length) {
+    failures.push(`${rule.name}: ${rule.path} memuat ${existing} kunci ${rule.key} dan ${anchors} jangkar ${rule.after}, seharusnya 0 dan ${rule.values.length}; perbarui aturannya`)
+    return
+  }
+  if (CHECK) {
+    failures.push(`${rule.name}: ${rule.path} belum disunting`)
+    return
+  }
+  let index = 0
+  const next = original.replace(anchor, (line, indent, key) => {
+    const value = rule.values[index++]
+    const literal = value.includes("'") ? JSON.stringify(value) : `'${value}'`
+    const name = key.startsWith("'") ? `'${rule.key}'` : rule.key
+    return `${line}\n${indent}${name}: ${literal},`
+  })
+  if (!DRY) writeFileSync(absolute, next)
+  report.push(`${rule.name}: ${rule.values.length} kunci disisipkan${DRY ? ' (rencana)' : ''}`)
+}
+
 /** Paket yang tetap mati: hanya berguna dengan layanan DeepSeek, mengirim data ke sana, atau digantikan rute TTOken Gateway. */
 const ALWAYS_HIDDEN = [
   'dsh-llm-deepseek-api-key',
@@ -662,22 +701,6 @@ setQuotedValues({
   value: MARK_BODY,
   expected: 1,
 })
-// Animasi berenang di beranda memorf path paus; target morf disamakan dengan mark supaya bentuknya tetap.
-setQuotedValues({
-  name: 'mark-beranda (bentuk)',
-  paths: [EMPTY_HERO],
-  pattern: /(const HERO_SWIM_(?:UP|DOWN)_PATH =\s*)('[^'\n]*')/g,
-  value: MARK_BODY,
-  expected: 2,
-})
-editFile({
-  name: 'mark-beranda (warna)',
-  path: EMPTY_HERO,
-  pairs: [
-    [`      <path d={FISH_LOGO_PATH} fill="currentColor">\n`, `      <path d={FISH_LOGO_PATH} fill="${KUNYIT}">\n`],
-    [`      </path>\n    </svg>\n`, `      </path>\n      <path d="${MARK_BAR}" fill="currentColor" />\n    </svg>\n`],
-  ],
-})
 copyAssets('wordmark-klien', [
   ['ttoken/client/BrandWordmark.tsx', 'packages/client/ui-primitives/src/BrandWordmark.tsx'],
   ['ttoken/client/running-mark@2x.png', 'packages/client/ui-chat/src/client/assets/running-whale@2x.png'],
@@ -687,13 +710,6 @@ setQuotedValues({
   name: 'nama-build-klien',
   paths: CLIENT_LOCALES,
   pattern: /('brand\.localBuild': )('[^'\n]*'|"[^"\n]*")/g,
-  value: brand.productName,
-  expected: CLIENT_LOCALES.length,
-})
-setQuotedValues({
-  name: 'judul-beranda',
-  paths: ['packages/client/ui-conversation/src/client/locales.ts'],
-  pattern: /('hero\.headline': )('[^'\n]*'|"[^"\n]*")/g,
   value: brand.productName,
   expected: CLIENT_LOCALES.length,
 })
@@ -742,20 +758,34 @@ editFile({
   ]],
 })
 
-// 16. Layar sambutan: mark di tengah, nama produk di bawahnya, satu baris
-//     atribusi. Tagline upstream dihapus.
-copyAssets('mark-sambutan', [['ttoken/renderer/welcome-mark.svg', 'apps/desktop/renderer/assets/welcome-mark.svg']])
+// 16. Layar sambutan dari desain terang: kertas, mark tinta di tengah, nama produk
+//     dengan Archivo, tagline TTOken, tombol penuh, dan satu baris atribusi di bawah.
+//     Halaman API key memakai mark kecil yang sama, bukan gambar merek upstream.
+const markPaths = fill => `<path d="${MARK_BODY}" fill="${fill}" /><path d="${MARK_BAR}" fill="${fill}" />`
 editFile({
   name: 'sambutan-tata-letak',
   path: 'apps/desktop/src/client/WelcomePage.tsx',
   pairs: [
     [
       `<img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />`,
-      `<img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" hidden={page === 'entry'} />`,
+      `{page === 'entry' ? null : <svg className="brand" viewBox="0 0 56 48" aria-hidden="true">${markPaths('currentColor')}</svg>}`,
     ],
     [
       `<h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>`,
-      `<img className="mark" src="assets/welcome-mark.svg" alt="" width="96" height="82" />\n        <h1 id="welcome-heading">{m.welcomeBrand}</h1>`,
+      `<svg className="mark" viewBox="0 0 56 48" aria-hidden="true">${markPaths('currentColor')}</svg>\n        <h1 id="welcome-heading">{m.welcomeBrand}</h1>`,
+    ],
+    [`<p id="welcome-description">{m.welcomeDescription}</p>`, `<p id="welcome-description">{m.welcomeTagline}</p>`],
+    [
+      `void start() }}>{m.welcomeSignIn}</button>`,
+      `void start() }}><svg className="button-mark" viewBox="0 0 56 48" aria-hidden="true">${markPaths(KUNYIT)}</svg>{m.welcomeSignIn}</button>`,
+    ],
+    [
+      `navigate('key') }}>{m.welcomeApiKey}</button>\n      </div>\n      <div id="key-actions"`,
+      `navigate('key') }}>{m.welcomeApiKey}</button>\n        <p className="new-account">{m.welcomeNewAccount.split('ttoken.dev').flatMap((part, index) => index === 0 ? [part] : [<strong key={index}>ttoken.dev</strong>, part])}</p>\n      </div>\n      <div id="key-actions"`,
+    ],
+    [
+      `}}>{m.welcomeKeyBack}</button>\n      </div>\n    </main>`,
+      `}}>{m.welcomeKeyBack}</button>\n      </div>\n      <p className="attribution">{m.welcomeDescription}</p>\n    </main>`,
     ],
   ],
 })
@@ -763,16 +793,61 @@ editFile({
   name: 'sambutan-gaya',
   path: 'apps/desktop/renderer/welcome.css',
   pairs: [[
-    `:lang(en) .tagline em {\n  font-size: inherit;\n}\n`,
-    `:lang(en) .tagline em {\n  font-size: inherit;\n}\n\n/* TTOken Code: centered mark above the product name, with one attribution line. */\n.tagline .mark {\n  display: block;\n  width: 96px;\n  height: 82px;\n  margin: 0 auto 20px;\n  user-select: none;\n  -webkit-user-drag: none;\n}\n\n.tagline h1 {\n  color: var(--dsw-alias-label-primary);\n  font-family: var(--dsw-font-family-brand);\n  font-size: 30px;\n  font-weight: 600;\n  line-height: 38px;\n}\n\n.tagline p {\n  margin-top: 12px;\n  font-size: 13px;\n  font-weight: 400;\n  line-height: 18px;\n}\n`,
+    `.auth-waiting .copy-link:disabled { cursor: default; }\n`,
+    `.auth-waiting .copy-link:disabled { cursor: default; }\n\n${readFileSync(join(ROOT, 'ttoken', 'renderer', 'welcome.css.part'), 'utf8')}`,
   ]],
 })
+editFile({
+  name: 'sambutan (test)',
+  path: 'apps/desktop/tests/welcome-renderer.client.spec.tsx',
+  pairs: [
+    [
+      `      document.title, document.querySelector('img')!.alt, document.getElementById(heading)!.textContent,\n`,
+      `      document.title, document.getElementById(heading)!.textContent,\n`,
+    ],
+    [
+      `    expect(view.document.querySelector('img')!.getAttribute('src')).toBe('assets/welcome-brand.svg')\n`,
+      `    expect(view.document.querySelector('svg.mark')).not.toBeNull()\n`,
+    ],
+  ],
+})
+copyAssets('sambutan (teks yang diharapkan)', readdirSync(join(ROOT, 'ttoken', 'desktop', 'welcome-expected'))
+  .map(file => [`ttoken/desktop/welcome-expected/${file}`, `apps/desktop/tests/expected/welcome/${file}`]))
 setQuotedValues({
   name: 'sambutan-atribusi',
   paths: ['apps/desktop/src/locale.ts'],
   pattern: /(welcomeDescription: )('[^'\n]*'|"[^"\n]*")/g,
   value: ATTRIBUTION,
   expected: 8,
+})
+// Urutan kamus desktop: en, zh, ja, es, fr, de, ru, pt.
+insertLocaleKey({
+  name: 'sambutan-tagline',
+  path: 'apps/desktop/src/locale.ts',
+  after: 'welcomeDescription',
+  key: 'welcomeTagline',
+  values: [
+    'The coding agent you pay for per token.', '按 token 付费的编程智能体。', 'トークン単位で支払うコーディングエージェント。',
+    'El agente de programación que pagas por token.', 'L’agent de code que vous payez au token.', 'Der Coding-Agent, den Sie pro Token bezahlen.',
+    'Агент для программирования с оплатой за токены.', 'O agente de programação que você paga por token.',
+  ],
+})
+insertLocaleKey({
+  name: 'sambutan-akun-baru',
+  path: 'apps/desktop/src/locale.ts',
+  after: 'welcomeTagline',
+  key: 'welcomeNewAccount',
+  values: [
+    'New to TTOken? Create an account at ttoken.dev', '还没有 TTOken 账号？在 ttoken.dev 注册', 'TTOken は初めてですか？ttoken.dev でアカウントを作成',
+    '¿Nuevo en TTOken? Crea una cuenta en ttoken.dev', 'Nouveau sur TTOken ? Créez un compte sur ttoken.dev', 'Neu bei TTOken? Erstellen Sie ein Konto auf ttoken.dev',
+    'Впервые в TTOken? Создайте аккаунт на ttoken.dev', 'Novo no TTOken? Crie uma conta em ttoken.dev',
+  ],
+})
+setLocaleValues({
+  name: 'sambutan-tombol-key',
+  path: 'apps/desktop/src/locale.ts',
+  key: 'welcomeApiKey',
+  values: ['Use an API key', '添加 API Key', 'APIキーを追加', 'Agregar clave API', 'Ajouter une clé API', 'API-Schlüssel hinzufügen', 'Добавить ключ API', 'Adicionar chave API'],
 })
 
 // 17. Terjemahan reasoning tetap memakai Bing atau Google; rute berbayar DeepSeek Flash tidak ditawarkan.
@@ -1213,21 +1288,24 @@ editFile({
   ],
 })
 
-// 23. Fon desain: Inter untuk teks, JetBrains Mono untuk kode. Keduanya ikut
-//     dibundel (lisensi SIL OFL) supaya Windows yang tidak memasangnya tampil sama.
+// 23. Fon desain sistem TTOken Marketing: Inter untuk teks, Archivo untuk judul dan
+//     nama produk (lewat --dsw-font-family-brand, lebar 125% di tempat pemakaiannya),
+//     IBM Plex Mono untuk kode, label, dan path. Semuanya ikut dibundel (lisensi SIL OFL)
+//     supaya Windows yang tidak memasangnya tampil sama.
 const FONT_FILES = [
   'inter-latin-wght.woff2', 'inter-latin-ext-wght.woff2',
-  'jetbrains-mono-latin-wght.woff2', 'jetbrains-mono-latin-ext-wght.woff2',
-  'Inter-OFL.txt', 'JetBrainsMono-OFL.txt',
+  'archivo-latin-wdth.woff2', 'archivo-latin-ext-wdth.woff2',
+  ...['400', '500', '600'].flatMap(weight => [`ibm-plex-mono-latin-${weight}.woff2`, `ibm-plex-mono-latin-ext-${weight}.woff2`]),
+  'Inter-OFL.txt', 'Archivo-OFL.txt', 'IBMPlexMono-OFL.txt',
 ]
 copyAssets('fon (berkas)', FONT_FILES.map(file => [`ttoken/fonts/${file}`, `packages/client/ui-theme/src/styles/${file}`]))
 const LATIN = 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD'
 const LATIN_EXT = 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF'
-const fontFace = (family, weights, file, range) => `
+const fontFace = (family, weights, file, range, stretch) => `
 @font-face {
   font-family: '${family}';
   font-style: normal;
-  font-weight: ${weights};
+  font-weight: ${weights};${stretch === undefined ? '' : `\n  font-stretch: ${stretch};`}
   font-display: swap;
   src: url(./${file}) format('woff2');
   unicode-range: ${range};
@@ -1239,11 +1317,13 @@ editFile({
   pairs: [[
     `  src: url(./montserrat-medium.woff2) format('woff2');\n}\n`,
     `  src: url(./montserrat-medium.woff2) format('woff2');\n}\n`
-      + `\n/* TTOken Code text and code fonts; SIL Open Font License in Inter-OFL.txt and JetBrainsMono-OFL.txt. */`
+      + `\n/* TTOken Code text, heading, and code fonts; SIL Open Font License in Inter-OFL.txt, Archivo-OFL.txt, and IBMPlexMono-OFL.txt. */`
       + fontFace('Inter', '100 900', 'inter-latin-wght.woff2', LATIN)
       + fontFace('Inter', '100 900', 'inter-latin-ext-wght.woff2', LATIN_EXT)
-      + fontFace('JetBrains Mono', '100 800', 'jetbrains-mono-latin-wght.woff2', LATIN)
-      + fontFace('JetBrains Mono', '100 800', 'jetbrains-mono-latin-ext-wght.woff2', LATIN_EXT),
+      + fontFace('Archivo', '100 900', 'archivo-latin-wdth.woff2', LATIN, '62% 125%')
+      + fontFace('Archivo', '100 900', 'archivo-latin-ext-wdth.woff2', LATIN_EXT, '62% 125%')
+      + ['400', '500', '600'].map(weight => fontFace('IBM Plex Mono', weight, `ibm-plex-mono-latin-${weight}.woff2`, LATIN)
+        + fontFace('IBM Plex Mono', weight, `ibm-plex-mono-latin-ext-${weight}.woff2`, LATIN_EXT)).join(''),
   ]],
 })
 editFile({
@@ -1251,7 +1331,8 @@ editFile({
   path: 'packages/client/ui-theme/src/styles/base.css',
   pairs: [
     [`  --dsh-font-family-text-default: -apple-system,`, `  --dsh-font-family-text-default: 'Inter', -apple-system,`],
-    [`  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code',`, `  --dsh-font-family-code-default: 'JetBrains Mono', 'SF Mono', 'Fira Code',`],
+    [`  --dsw-font-family-brand: 'Montserrat', var(--dsh-font-family-text-default);`, `  --dsw-font-family-brand: 'Archivo', var(--dsh-font-family-text-default);`],
+    [`  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code',`, `  --dsh-font-family-code-default: 'IBM Plex Mono', 'SF Mono', 'JetBrains Mono', 'Fira Code',`],
   ],
 })
 editFile({
@@ -1268,25 +1349,23 @@ editFile({
   ]],
 })
 
-// 24. Composer sesuai desain desktop: chip opsi di atas kartu (izin, lalu chip
-//     plugin di `conversation.input.left`, lalu mark), tombol kirim ↵ di dalam
-//     kartu, mode dan model di bawahnya. Logika InputBar upstream tidak diubah;
-//     hanya susunan elemen dan gayanya.
+// 24. Composer dari desain terang: kartu putih datar bergaris tegas, dan satu baris
+//     kontrol di dalam kartu: tombol perintah, mode Agent/Plan, izin, lalu model,
+//     batas langkah, dan tombol kirim bulat hitam. Logika InputBar upstream tidak
+//     diubah; hanya urutan slot dan gayanya.
 editFile({
-  name: 'composer (chip)',
+  name: 'composer (urutan)',
   path: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
-  pairs: [[
-    `      {/* Trigger clicks land on the card, not the editor: the toolbar row's\n`,
-    clientPart('composer/chips.tsx.part').replace('TTOKEN_MARK_BODY', MARK_BODY).replace('TTOKEN_MARK_BAR', MARK_BAR)
-      + `      {/* Trigger clicks land on the card, not the editor: the toolbar row's\n`,
-  ]],
-})
-replaceRegion({
-  name: 'composer (susunan)',
-  path: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
-  start: `        <DraftEditor\n          classNames={css}\n`,
-  end: `      <div className={css.dock} data-composer-dock>`,
-  content: clientPart('composer/row.tsx.part'),
+  pairs: [
+    [
+      `              {sessionId === undefined ? null : renderSlot('conversation.input.permission', { locked })}\n              {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}\n`,
+      `              {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}\n              {sessionId === undefined ? null : renderSlot('conversation.input.permission', { locked })}\n`,
+    ],
+    [
+      `              {input === undefined || sessionId === undefined\n                ? null\n                : renderSlot('conversation.input.right', {})}\n              {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}\n`,
+      `              {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}\n              {input === undefined || sessionId === undefined\n                ? null\n                : renderSlot('conversation.input.right', {})}\n`,
+    ],
+  ],
 })
 editFile({
   name: 'composer (gaya)',
@@ -1306,21 +1385,34 @@ setLocaleValues({
   ],
 })
 
-// 24b. Menu mode di bawah composer: "Agent mode" atau "Plan mode". Upstream hanya
+replaceTokens({
+  name: 'composer (uji placeholder)',
+  scopes: ['packages/client/ui-conversation/tests/input-bar.client.spec.tsx'],
+  pairs: [['发消息或创建任务, / 调用指令, @ 文件或对话', '让 Code 解答，或描述一项修改']],
+})
+editFile({
+  name: 'composer (uji urutan)',
+  path: 'packages/client/ui-conversation/tests/input-bar.client.spec.tsx',
+  pairs: [[
+    `      'conversation.input.permission', 'conversation.input.plan', 'conversation.input.left',\n      'conversation.input.right', 'conversation.input.model', 'conversation.input.activity',\n`,
+    `      'conversation.input.plan', 'conversation.input.permission', 'conversation.input.left',\n      'conversation.input.model', 'conversation.input.right', 'conversation.input.activity',\n`,
+  ]],
+})
+
+// 24b. Mode di composer: tombol bersegmen "Agent" dan "Plan". Upstream hanya
 //      menampilkan chip saat mode rencana aktif dan masuknya lewat /plan; di sini
-//      kedua mode dipilih dari satu menu, memakai perintah /plan dan /plan off yang sama.
+//      kedua mode dipilih dari satu kontrol, memakai perintah /plan dan /plan off yang sama.
 editFile({
   name: 'mode (impor)',
   path: 'packages/client/ui-plan/src/client/PlanModeControl.tsx',
   pairs: [
-    [`import { useEffect, useRef, useState } from 'react'\n`, `import { useEffect, useRef, useState } from 'react'\nimport type { ReactNode } from 'react'\n`],
     [
       `import { IconCloseCircleFillRegular, IconPlanOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'\n`,
-      `import { IconChevronDownOutlineRegular, IconPlanOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'\nimport type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'\n`,
+      `import { IconPlanOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'\n`,
     ],
     [
       ` * Plan-mode status over the host-computed \`plan\` projection. The chip renders\n * only while the effective target is plan mode (\`pending ? !active : active\`\n * — a folded host value, not client optimism) and executes /plan off.\n`,
-      ` * Mode menu over the host-computed \`plan\` projection: the trigger names the\n * effective target (\`pending ? !active : active\`, a folded host value, not\n * client optimism), and choosing the other mode executes /plan or /plan off.\n`,
+      ` * Agent and Plan buttons over the host-computed \`plan\` projection: the pressed\n * button is the effective target (\`pending ? !active : active\`, a folded host\n * value, not client optimism), and pressing the other executes /plan or /plan off.\n`,
     ],
   ],
 })
@@ -1356,7 +1448,7 @@ editFile({
   pairs: [
     [
       ` * PlanChip over the \`plan\` projection: nothing renders while the capability\n * is absent or the effective target is the default mode; while plan mode is\n * the target, the chip executes /plan off and remains visible through failures\n * until the projection confirms the exit.\n`,
-      ` * PlanChip over the \`plan\` projection: nothing renders while the capability\n * is absent; otherwise the trigger names the effective target, and choosing\n * the other mode executes /plan or /plan off, reporting failures in place\n * until the projection confirms the change.\n`,
+      ` * PlanChip over the \`plan\` projection: nothing renders while the capability\n * is absent; otherwise the pressed button is the effective target, and pressing\n * the other executes /plan or /plan off, reporting failures in place until the\n * projection confirms the change.\n`,
     ],
     [
       `  exitPlanMode = vi.fn(() => Promise.resolve<string | null>(null)),\n  locked = false,\n`,
@@ -1376,14 +1468,14 @@ replaceRegion({
   content: clientPart('plan/plan-mode-control.spec.part'),
 })
 const MODE_COPY = {
-  zh: ['智能体模式', '计划模式', '读取、修改并运行命令', '先写计划，不做修改', '模式：{name}', '进入计划模式失败'],
-  en: ['Agent mode', 'Plan mode', 'Reads, edits and runs commands', 'Writes a plan first, changes nothing', 'Mode: {name}', 'Failed to enter plan mode'],
-  ja: ['エージェントモード', '計画モード', '読み取り、編集、コマンド実行', '先に計画を書き、変更はしない', 'モード: {name}', '計画モードに入れませんでした'],
-  es: ['Modo agente', 'Modo plan', 'Lee, edita y ejecuta comandos', 'Primero escribe un plan, no cambia nada', 'Modo: {name}', 'No se pudo entrar en el modo de plan'],
-  fr: ['Mode agent', 'Mode Plan', 'Lit, modifie et exécute des commandes', 'Rédige d’abord un plan, ne modifie rien', 'Mode : {name}', 'Impossible d’activer le mode Plan'],
-  de: ['Agentenmodus', 'Planmodus', 'Liest, bearbeitet und führt Befehle aus', 'Schreibt zuerst einen Plan, ändert nichts', 'Modus: {name}', 'Der Planmodus konnte nicht gestartet werden'],
-  ru: ['Режим агента', 'Режим планирования', 'Читает, изменяет и выполняет команды', 'Сначала пишет план, ничего не меняет', 'Режим: {name}', 'Не удалось включить режим планирования.'],
-  pt: ['Modo agente', 'Modo de planejamento', 'Lê, edita e executa comandos', 'Escreve um plano primeiro, não altera nada', 'Modo: {name}', 'Falha ao entrar no modo de plano'],
+  zh: ['智能体', '计划', '读取、修改并运行命令', '先写计划，不做修改', '模式：{name}', '进入计划模式失败'],
+  en: ['Agent', 'Plan', 'Reads, edits and runs commands', 'Writes a plan first, changes nothing', 'Mode: {name}', 'Failed to enter plan mode'],
+  ja: ['エージェント', '計画', '読み取り、編集、コマンド実行', '先に計画を書き、変更はしない', 'モード: {name}', '計画モードに入れませんでした'],
+  es: ['Agente', 'Plan', 'Lee, edita y ejecuta comandos', 'Primero escribe un plan, no cambia nada', 'Modo: {name}', 'No se pudo entrar en el modo de plan'],
+  fr: ['Agent', 'Plan', 'Lit, modifie et exécute des commandes', 'Rédige d’abord un plan, ne modifie rien', 'Mode : {name}', 'Impossible d’activer le mode Plan'],
+  de: ['Agent', 'Plan', 'Liest, bearbeitet und führt Befehle aus', 'Schreibt zuerst einen Plan, ändert nichts', 'Modus: {name}', 'Der Planmodus konnte nicht gestartet werden'],
+  ru: ['Агент', 'План', 'Читает, изменяет и выполняет команды', 'Сначала пишет план, ничего не меняет', 'Режим: {name}', 'Не удалось включить режим планирования.'],
+  pt: ['Agente', 'Plano', 'Lê, edita e executa comandos', 'Escreve um plano primeiro, não altera nada', 'Modo: {name}', 'Falha ao entrar no modo de plano'],
 }
 const MODE_KEYS = ['mode.agent', 'mode.plan', 'mode.agent.note', 'mode.plan.note', 'mode.aria', 'mode.enterFailed']
 {
@@ -1404,7 +1496,7 @@ const MODE_KEYS = ['mode.agent', 'mode.plan', 'mode.agent.note', 'mode.plan.note
   }
 }
 
-// 24c. Chip folder dan cabang Git di baris opsi composer. Cabang dibaca dari berkas
+// 24c. Chip folder dan cabang Git di samping judul sesi. Cabang dibaca dari berkas
 //      HEAD lewat Remote workspaceFiles yang sudah ada, jadi tidak ada layanan Host baru.
 for (const file of ['TtokenChips.tsx', 'TtokenChips.module.css', 'TaskStatus.tsx', 'TaskStatus.module.css', 'install.ts', 'locales.ts']) {
   writeGenerated(`chip composer (${file})`, `packages/client/ui-conversation/src/client/ttoken/${file}`, clientPart(`composer/${file}`))
@@ -1416,7 +1508,7 @@ editFile({
     [`import { installStopShortcut } from './stop-shortcut.ts'\n`, `import { installStopShortcut } from './stop-shortcut.ts'\nimport { installTtokenComposer } from './ttoken/install.ts'\n`],
     [
       `  ctx.plugin(todoDockEntry)\n  ctx.plugin(queueDockEntry)\n}\n`,
-      `  ctx.plugin(todoDockEntry)\n  ctx.plugin(queueDockEntry)\n  // TTOken Code: working folder and Git branch chips above the draft.\n  installTtokenComposer(ctx)\n}\n`,
+      `  ctx.plugin(todoDockEntry)\n  ctx.plugin(queueDockEntry)\n  // TTOken Code: working folder and Git branch beside the Session title, step limit in the composer row, task status above it.\n  installTtokenComposer(ctx)\n}\n`,
     ],
   ],
 })
@@ -1426,14 +1518,16 @@ editFile({
   pairs: [[
     `.trigger:disabled {\n  color: var(--dsw-alias-label-dimmed);\n  cursor: default;\n}\n`,
     `.trigger:disabled {\n  color: var(--dsw-alias-label-dimmed);\n  cursor: default;\n}\n
-/* TTOken Code: the permission control is a chip in the composer's option row,
-   with the same size and fill as the folder and branch chips. */
+/* TTOken Code: the permission control is a chip in the composer's bottom row,
+   white with a hairline border like the design's toggles. */
 .trigger {
   gap: 8px;
-  height: 34px;
+  height: 36px;
   padding: 0 8px 0 12px;
-  border-radius: 12px;
-  background: var(--dsw-specific-selector);
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   font-weight: 400;
@@ -1441,7 +1535,7 @@ editFile({
 
 @media (hover: hover) {
   .trigger:hover:not(:disabled) {
-    background: var(--dsw-alias-button-ghost-active-hover);
+    background: var(--dsw-alias-interactive-bg-hover-solid);
   }
 }
 `,
@@ -2039,7 +2133,176 @@ editFile({
   path: 'apps/desktop/src/main.ts',
   pairs: [[
     `  return nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb'\n`,
-    `  return nativeTheme.shouldUseDarkColors ? '#111111' : '#f3f2ee'\n`,
+    `  return nativeTheme.shouldUseDarkColors ? '#111111' : '#f4efe4'\n`,
+  ]],
+})
+
+// 31. Desain terang dari sistem desain TTOken Marketing (kanvas "TTOken Code Desktop:
+//     Tata Letak", halaman "Redesign terang"). Palet dan fon ada di aturan 22 dan 23,
+//     composer di aturan 24; bagian di bawah ini sisanya.
+
+// 31a. Tampilan terang menjadi bawaan. User tetap bisa memilih gelap atau ikut sistem
+//      di Settings; pilihan yang tersimpan tidak diubah.
+editFile({
+  name: 'tema terang bawaan',
+  path: 'packages/client/ui-theme/src/theme-settings.ts',
+  pairs: [[`export const DEFAULT_PREFERENCE: ThemePreference = 'system'\n`, `export const DEFAULT_PREFERENCE: ThemePreference = 'light'\n`]],
+})
+editFile({
+  name: 'tema terang bawaan (test runtime)',
+  path: 'packages/client/ui-theme/tests/theme.client.spec.ts',
+  pairs: [
+    [
+      `  it('defaults to the system preference resolved against prefers-color-scheme', () => {\n    const { theme } = make()\n    const snapshot = theme.getTheme()\n    expect(snapshot.preference).toBe('system')\n    expect(snapshot.fontSizes.text).toBe(14)\n    // jsdom matchMedia is absent; system resolves to light.\n`,
+      `  it('defaults to the light preference', () => {\n    const { theme } = make()\n    const snapshot = theme.getTheme()\n    expect(snapshot.preference).toBe('light')\n    expect(snapshot.fontSizes.text).toBe(14)\n`,
+    ],
+    [
+      `      expect(make().theme.getTheme().preference).toBe('system')\n    } finally {\n`,
+      `      expect(make().theme.getTheme().preference).toBe('light')\n    } finally {\n`,
+    ],
+    [
+      `    dispose()\n    expect(theme.getTheme().preference).toBe('system')\n`,
+      `    dispose()\n    expect(theme.getTheme().preference).toBe('light')\n`,
+    ],
+    [
+      `      const { theme, events } = make()\n      expect(theme.getTheme().preference).toBe('system')\n      expect(theme.getTheme().active.id).toBe('dark')\n      media.flip()\n      expect(theme.getTheme().active.id).toBe('light')\n      expect(events).toHaveLength(1)\n`,
+      `      const { theme, events } = make()\n      theme.setTheme('system')\n      expect(theme.getTheme().preference).toBe('system')\n      expect(theme.getTheme().active.id).toBe('dark')\n      media.flip()\n      expect(theme.getTheme().active.id).toBe('light')\n      expect(events).toHaveLength(2)\n`,
+    ],
+    [
+      `      theme.setTheme('light')\n      expect(events).toHaveLength(1)\n      media.flip()\n      expect(events).toHaveLength(1)\n      expect(theme.getTheme().active.id).toBe('light')\n`,
+      `      theme.setTheme('dark')\n      expect(events).toHaveLength(1)\n      media.flip()\n      expect(events).toHaveLength(1)\n      expect(theme.getTheme().active.id).toBe('dark')\n`,
+    ],
+  ],
+})
+editFile({
+  name: 'tema terang bawaan (test host)',
+  path: 'packages/client/ui-theme/tests/config.host.spec.ts',
+  pairs: [
+    [
+      `    expect(rowText(rows[0])).toContain('@media(prefers-color-scheme:dark)')\n    expect(rowText(rows[1])).toContain('const preference = "system"')\n`,
+      `    expect(rowText(rows[0])).toContain('color-scheme:light')\n    expect(rowText(rows[0])).not.toContain('@media(prefers-color-scheme:dark)')\n    expect(rowText(rows[1])).toContain('const preference = "light"')\n`,
+    ],
+    [
+      `  it('uses the system preference without a settings provider', async () => {\n    const ctx = new Context()\n    await ctx.plugin({ Config, apply }).await()\n    expect(rowText(collect(ctx)[1])).toContain('const preference = "system"')\n`,
+      `  it('uses the light preference without a settings provider', async () => {\n    const ctx = new Context()\n    await ctx.plugin({ Config, apply }).await()\n    expect(rowText(collect(ctx)[1])).toContain('const preference = "light"')\n`,
+    ],
+  ],
+})
+
+// 31b. Gelembung pesan user: kartu putih bergaris dengan sudut kanan bawah lebih kecil.
+editFile({
+  name: 'gelembung pesan user',
+  path: 'packages/client/ui-primitives/src/UserMessageBubble.module.css',
+  pairs: [[
+    `  background: var(--dsw-specific-bubble);\n  border-radius: var(--dsw-radius-xl);\n`,
+    `  background: var(--dsw-specific-bubble);\n  /* TTOken Code: white card with a hairline border; the corner nearest the sender is tighter. */\n  border: 0.5px solid var(--dsw-alias-border-l4);\n  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) var(--dsw-radius-xs) var(--dsw-radius-lg);\n`,
+  ]],
+})
+
+// 31c. Beranda: judul Archivo yang menyebut Workspace terpilih dan satu baris petunjuk,
+//      tanpa mark dan lencana pratinjau. Judul pemilik (`headline`) tetap menggantikan keduanya.
+const EMPTY_HERO_PATH = 'packages/client/ui-conversation/src/client/skeleton/EmptyHero.tsx'
+editFile({
+  name: 'beranda (impor)',
+  path: EMPTY_HERO_PATH,
+  pairs: [
+    [
+      `// phase does not remount its textarea.\n\nimport { useState } from 'react'\nimport type { ReactNode, RefObject } from 'react'\n`,
+      `// phase does not remount its textarea.\n\nimport type { ReactNode, RefObject } from 'react'\n`,
+    ],
+    [
+      `  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,\n`,
+      `  IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,\n`,
+    ],
+  ],
+})
+replaceRegion({
+  name: 'beranda (judul)',
+  path: EMPTY_HERO_PATH,
+  start: `/** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */\n`,
+  end: '',
+  content: clientPart('hero/HeroShell.tsx.part'),
+})
+editFile({
+  name: 'beranda (gaya)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/HeroShell.module.css',
+  pairs: [[
+    `.modalError {\n  margin-top: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-state-error-primary);\n}\n`,
+    `.modalError {\n  margin-top: 8px;\n  font-size: 12px;\n  line-height: 18px;\n  color: var(--dsw-alias-state-error-primary);\n}\n\n${clientPart('hero/HeroShell.css.part')}`,
+  ]],
+})
+editFile({
+  name: 'beranda (nama Workspace)',
+  path: 'packages/client/ui-conversation/src/client/skeleton/ConversationContent.tsx',
+  pairs: [[
+    `<HeroShell t={t} renderSlot={renderSlot} headline={props.headline} />`,
+    `<HeroShell t={t} workspace={chipTitle} headline={props.headline} />`,
+  ]],
+})
+// Urutan kamus percakapan: zh, en, ja, es, fr, de, ru, pt.
+setLocaleValues({
+  name: 'beranda (judul tanpa Workspace)',
+  path: 'packages/client/ui-conversation/src/client/locales.ts',
+  key: 'hero.headline',
+  values: ['要构建什么？', 'What should we build?', '何を作りましょうか？', '¿Qué construimos?', 'Que construisons-nous ?', 'Was sollen wir bauen?', 'Что будем создавать?', 'O que vamos construir?'],
+})
+insertLocaleKey({
+  name: 'beranda (judul dengan Workspace)',
+  path: 'packages/client/ui-conversation/src/client/locales.ts',
+  after: 'hero.headline',
+  key: 'hero.headlineWorkspace',
+  values: [
+    '要在 {name} 中构建什么？', 'What should we build in {name}?', '{name} で何を作りましょうか？', '¿Qué construimos en {name}?',
+    'Que construisons-nous dans {name} ?', 'Was sollen wir in {name} bauen?', 'Что будем создавать в {name}?', 'O que vamos construir em {name}?',
+  ],
+})
+insertLocaleKey({
+  name: 'beranda (petunjuk)',
+  path: 'packages/client/ui-conversation/src/client/locales.ts',
+  after: 'hero.headlineWorkspace',
+  key: 'hero.subtitle',
+  values: [
+    '描述一项修改，用 @ 提及文件，或从 GitHub 领取一个 issue。',
+    'Describe a change, mention files with @, or pick up an issue from GitHub.',
+    '変更内容を説明するか、@ でファイルを指定するか、GitHub の issue を選んでください。',
+    'Describe un cambio, menciona archivos con @ o toma un issue de GitHub.',
+    'Décrivez une modification, mentionnez des fichiers avec @ ou reprenez une issue GitHub.',
+    'Beschreiben Sie eine Änderung, erwähnen Sie Dateien mit @ oder übernehmen Sie ein Issue von GitHub.',
+    'Опишите изменение, упомяните файлы через @ или возьмите задачу из GitHub.',
+    'Descreva uma mudança, mencione arquivos com @ ou pegue uma issue do GitHub.',
+  ],
+})
+editFile({
+  name: 'beranda (test komposer)',
+  path: 'packages/client/ui-conversation/tests/skeleton.client.spec.tsx',
+  pairs: [
+    [
+      `    expect(b.view.getByText('探索未至之境')).toBeTruthy()\n    expect(b.view.getByText('预览版')).toBeTruthy()\n`,
+      `    expect(b.view.getByRole('heading', { name: /构建什么？$/ })).toBeTruthy()\n`,
+    ],
+    [`    expect(b.view.queryByText('探索未至之境')).toBeNull()\n`, `    expect(b.view.queryByRole('heading', { name: /构建什么？$/ })).toBeNull()\n`],
+    [
+      `    expect(b.view.getByText('探索未至之境')).toBeTruthy()\n    expect(b.view.getByRole('textbox')).toBeTruthy()\n`,
+      `    expect(b.view.getByRole('heading', { name: /构建什么？$/ })).toBeTruthy()\n    expect(b.view.getByRole('textbox')).toBeTruthy()\n`,
+    ],
+  ],
+})
+replaceRegion({
+  name: 'beranda (test)',
+  path: 'packages/client/ui-conversation/tests/skeleton.client.spec.tsx',
+  start: `describe('Hero chrome', () => {\n`,
+  end: `describe('ConversationRoot resident composer', () => {\n`,
+  content: `${clientPart('hero/hero.spec.part')}\n`,
+})
+
+// 31d. Sidebar: lockup tinta dengan nama produk Archivo, tombol New session hitam
+//      dengan pintasan yang selalu terlihat, dan baris navigasi aktif berwarna putih.
+editFile({
+  name: 'sidebar terang',
+  path: 'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
+  pairs: [[
+    `  /* The delay is not motion: keep it and drop only the fade. */\n  .root.quietBars {\n    transition-duration: 0s;\n  }\n}\n`,
+    `  /* The delay is not motion: keep it and drop only the fade. */\n  .root.quietBars {\n    transition-duration: 0s;\n  }\n}\n${clientPart('sidebar/SidebarRoot.css.part')}`,
   ]],
 })
 

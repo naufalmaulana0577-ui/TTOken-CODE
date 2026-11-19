@@ -1,7 +1,9 @@
 .bubble {
   max-width: 100%;
   background: var(--dsw-specific-bubble);
-  border-radius: var(--dsw-radius-xl);
+  /* TTOken Code: white card with a hairline border; the corner nearest the sender is tighter. */
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) var(--dsw-radius-xs) var(--dsw-radius-lg);
   padding: 10px 16px;
   font-size: var(--dsh-content-font-size, 14px);
   line-height: calc(22px + var(--dsh-content-font-delta, 0px));

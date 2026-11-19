@@ -1,0 +1,36 @@
+/* TTOken Code: the light redesign's home headline. A left-aligned Archivo
+   title naming the Workspace, with one line of guidance under it. */
+.headline {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  row-gap: 8px;
+}
+
+.title {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family-brand);
+  font-size: 32px;
+  font-stretch: 125%;
+  font-weight: 600;
+  line-height: 40px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}

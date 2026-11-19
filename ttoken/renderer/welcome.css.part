@@ -1,0 +1,184 @@
+/* TTOken Code: the light welcome from the TTOken Marketing design system. Paper
+   surface, ink mark and actions, the product name in Archivo, and one
+   attribution line in IBM Plex Mono. The dark scheme swaps paper and ink. */
+body {
+  --dsw-alias-label-primary: #16130d;
+  --dsw-alias-label-secondary: #5c564c;
+  --dsw-alias-label-tertiary: #6b6459;
+  --dsw-alias-label-primary-inverted: #fbf9f4;
+  --dsw-alias-brand-primary: #16130d;
+  --dsw-alias-button-primary-hover: #2e2a22;
+  --dsw-alias-button-elevated-fill: #ffffff;
+  --dsw-alias-button-floating-hover: #fbf9f4;
+  --dsw-alias-border-l2: #d6ccb8;
+  --dsw-alias-border-l4: #d6ccb8;
+  --dsw-alias-label-caption: #8c8475;
+  --welcome-tint: #f4efe4;
+  --dsw-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --dsw-font-family-brand: 'Archivo', var(--dsw-font-family);
+  --welcome-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    --dsw-alias-label-primary: #f4efe4;
+    --dsw-alias-label-secondary: #c9c1b2;
+    --dsw-alias-label-tertiary: #a39a89;
+    --dsw-alias-label-primary-inverted: #16130d;
+    --dsw-alias-brand-primary: #f4efe4;
+    --dsw-alias-button-primary-hover: #e0d8c8;
+    --dsw-alias-button-elevated-fill: #221e17;
+    --dsw-alias-button-floating-hover: #2b261d;
+    --dsw-alias-border-l2: #3d362a;
+    --dsw-alias-border-l4: #4a4234;
+    --dsw-alias-label-caption: #8c8475;
+    --welcome-tint: #16130d;
+  }
+}
+
+#root {
+  gap: 0;
+  padding: 0;
+  font-family: var(--dsw-font-family);
+  font-weight: 400;
+}
+
+.titlebar {
+  flex: 0 0 44px;
+}
+
+.welcome {
+  grid-template-rows: 40px minmax(0, 1fr) auto auto;
+  justify-items: stretch;
+  padding: 0 64px 24px;
+}
+
+.welcome > .brand {
+  justify-self: center;
+  width: 47px;
+  height: 40px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.tagline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 16px;
+  line-height: 24px;
+  white-space: normal;
+}
+
+.tagline .mark {
+  width: 84px;
+  height: 72px;
+  margin: 0 0 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.tagline h1 {
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family-brand);
+  font-size: 32px;
+  font-stretch: 125%;
+  font-weight: 700;
+  line-height: 38px;
+  letter-spacing: -0.01em;
+}
+
+.tagline p {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.actions {
+  align-self: end;
+  gap: 12px;
+  width: 100%;
+}
+
+.actions button {
+  gap: 10px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.actions .button-mark {
+  flex: none;
+  width: 22px;
+  height: 19px;
+}
+
+.actions .back {
+  position: static;
+  align-self: center;
+  height: 32px;
+  transform: none;
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.new-account {
+  margin: 6px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.new-account strong {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.attribution {
+  grid-row: 4;
+  grid-column: 1;
+  margin: 28px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--welcome-font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.key-form {
+  gap: 32px;
+  width: 100%;
+}
+
+.key-heading h1,
+#auth-status {
+  font-family: var(--dsw-font-family-brand);
+  font-size: 22px;
+  font-stretch: 125%;
+  font-weight: 600;
+  line-height: 30px;
+  letter-spacing: -0.01em;
+}
+
+.key-heading p {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: normal;
+}
+
+.key-field input {
+  height: 52px;
+  padding: 0 16px;
+  border-color: var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-button-elevated-fill);
+  font-size: 15px;
+}
+
+.key-field input:focus {
+  border-color: var(--dsw-alias-label-primary);
+}

@@ -602,6 +602,6 @@ export function apply(ctx: Context, config: SyncedConfig<ConversationConfig>): v
   })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
-  // TTOken Code: working folder and Git branch chips above the draft.
+  // TTOken Code: working folder and Git branch beside the Session title, step limit in the composer row, task status above it.
   installTtokenComposer(ctx)
 }

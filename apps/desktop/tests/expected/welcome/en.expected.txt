@@ -1,6 +1,4 @@
 TTOken Code
 TTOken Code
-Welcome to TTOken Code
-Build potential. Explore intelligence.
-Sign in
-Add API Key
+The coding agent you pay for per token.
+Use an API key

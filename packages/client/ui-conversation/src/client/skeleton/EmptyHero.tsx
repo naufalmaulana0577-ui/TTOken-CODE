@@ -1,10 +1,9 @@
 // The composer remains in ConversationRoot so switching out of the blank-draft
 // phase does not remount its textarea.
 
-import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
-  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
+  IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationContentProps } from '../contract/slots.ts'
@@ -61,103 +60,33 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
   )
 }
 
-/** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
+/** Hero chrome props; the workspace row rides the InputBar accessory hole. */
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
-  /** Authorized renderer for the hero brand-mark slot. */
-  renderSlot: ConversationContentProps['renderSlot']
-  /** Text shown instead of the default headline and preview badge. */
+  /** Title of the chosen Workspace, named in the default headline; absent before one is chosen. */
+  workspace?: string | undefined
+  /** Text shown instead of the default headline and guidance line. */
   headline?: string | undefined
   /** Overlay content after the stack (modals). */
   children?: ReactNode
 }
 
-/* Hover swim morph targets: the resting FISH_LOGO_PATH with weighted
-   regional deformation baked in (generated programmatically — parse the
-   path's absolute M/C/L/Z commands, displace points with smoothstep falloff
-   weights, emit the same command structure so SMIL can interpolate `d`
-   between them). Tail: rotation about (15.6, 5.2) with weight growing toward
-   the tail tip (x>15, y<8.5) — UP -7°, DOWN +6°. Mouth/fin swoosh: a bend,
-   not a rotation — vertical lift with weight-squared falloff from the body
-   anchor (14.1, 15.0), so the near end stays seated and the mouth corner
-   sweeps most, a smile lift (UP -0.7 units at the tip, DOWN +0.5). The eye
-   subpaths carry zero weight and stay fixed. */
-const HERO_SWIM_UP_PATH =
-  'M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z'
-const HERO_SWIM_DOWN_PATH =
-  'M8 0H48A8 8 0 0 1 56 8V8A8 8 0 0 1 48 16H8A8 8 0 0 1 0 8V8A8 8 0 0 1 8 0ZM15 4H15A9 9 0 0 1 24 13V39A9 9 0 0 1 15 48H15A9 9 0 0 1 6 39V13A9 9 0 0 1 15 4ZM41 4H41A9 9 0 0 1 50 13V21A9 9 0 0 1 41 30H41A9 9 0 0 1 32 21V13A9 9 0 0 1 41 4Z'
-
 /**
- * The hero fish (34px wide), static at rest. Hovering swims the whale in
- * place: a gentle head-up sway (CSS, on the hitbox hover) while the body
- * itself morphs — SMIL interpolates `d` through the tail-up and tail-down
- * targets on the same 1.6s period, so the tail wags and the fin flutters in
- * real curve deformation. Decorative — hidden from the accessibility tree;
- * reduced motion keeps the static filled logo on hover (sampled at
- * mouseenter; a mid-hover preference change takes effect on the next enter).
- * @param props.hovering - driven by the hitbox parent's pointer state.
- * @returns the fish svg element.
- */
-function HeroFish({ hovering }: { hovering: boolean }) {
-  return (
-    <svg
-      className={css.fish}
-      width={34}
-      height={(34 * FISH_LOGO_VIEWBOX.height) / FISH_LOGO_VIEWBOX.width}
-      viewBox={`0 0 ${FISH_LOGO_VIEWBOX.width} ${FISH_LOGO_VIEWBOX.height}`}
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d={FISH_LOGO_PATH} fill="#FFB21A">
-        {hovering && (
-          <animate
-            attributeName="d"
-            values={`${FISH_LOGO_PATH};${HERO_SWIM_UP_PATH};${FISH_LOGO_PATH};${HERO_SWIM_DOWN_PATH};${FISH_LOGO_PATH}`}
-            keyTimes="0;0.35;0.55;0.75;1"
-            calcMode="spline"
-            keySplines="0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1"
-            dur="1.6s"
-            repeatCount="indefinite"
-          />
-        )}
-      </path>
-      <path d="M36 37H46A4 4 0 0 1 50 41V41A4 4 0 0 1 46 45H36A4 4 0 0 1 32 41V41A4 4 0 0 1 36 37Z" fill="currentColor" />
-    </svg>
-  )
-}
-
-/**
- * Render the hero chrome (headline only; no composer, no workspace row).
+ * Render the hero chrome: a headline that names the chosen Workspace and one
+ * line of guidance under it (no composer, no workspace row).
  * @param props - see {@link HeroShellProps}.
- * @returns the centered hero element tree.
+ * @returns the hero element tree.
  */
-export function HeroShell({ t, renderSlot, headline, children }: HeroShellProps) {
-  const [hovering, setHovering] = useState(false)
+export function HeroShell({ t, workspace, headline, children }: HeroShellProps) {
   return (
     <div className={css.root}>
       <div className={css.stack}>
         <div className={css.headline}>
-          {/* figma 34:10412: fish 34×25 leading the headline, gap 10. */}
-          <span
-            className={css.fishHitbox}
-            onPointerEnter={(event) => {
-              if (event.pointerType !== 'touch'
-                && window.matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
-                setHovering(true)
-              }
-            }}
-            onPointerLeave={() => { setHovering(false) }}
-          >
-            {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.fish }, {
-              fallback: <HeroFish hovering={hovering} />,
-            })}
-          </span>
-          <span className={css.titleGroup}>
-            {/* Own element: keeps the headline text addressable apart from the badge. */}
-            <span>{headline ?? t('hero.headline')}</span>
-            {headline === undefined && <span className={css.previewBadge}>{t('hero.preview')}</span>}
-          </span>
+          <h1 className={css.title}>
+            {headline ?? (workspace === undefined ? t('hero.headline') : t('hero.headlineWorkspace', { name: workspace }))}
+          </h1>
+          {headline === undefined && <p className={css.subtitle}>{t('hero.subtitle')}</p>}
         </div>
         <div className={css.body}>
           {/* The composer remains mounted outside this component. */}

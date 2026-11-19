@@ -1,6 +1,5 @@
 TTOken Code
-TTOken Code
 Sign in timed out
 Sign in again
-Add API Key
+Use an API key
 Sign in again to continue

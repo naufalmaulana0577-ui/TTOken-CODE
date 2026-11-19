@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
  * PlanChip over the `plan` projection: nothing renders while the capability
- * is absent; otherwise the trigger names the effective target, and choosing
- * the other mode executes /plan or /plan off, reporting failures in place
- * until the projection confirms the change.
+ * is absent; otherwise the pressed button is the effective target, and pressing
+ * the other executes /plan or /plan off, reporting failures in place until the
+ * projection confirms the change.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -34,8 +34,8 @@ function setup(
   return { store, exitPlanMode, enterPlanMode, view }
 }
 
-const trigger = (name: '智能体模式' | '计划模式') => screen.getByRole('button', { name: `模式：${name}` })
-const choose = (name: RegExp) => { fireEvent.click(screen.getByRole('menuitem', { name })) }
+const group = () => screen.getByRole('group')
+const segment = (name: '智能体' | '计划') => screen.getByRole('button', { name })
 
 describe('PlanChip', () => {
   it('renders nothing for an absent capability', () => {
@@ -43,45 +43,46 @@ describe('PlanChip', () => {
     expect(absent.view.container.innerHTML).toBe('')
   })
 
-  it('names the effective target: Agent mode by default and while leaving, Plan mode while active or entering', () => {
+  it('presses the effective target: Agent by default and while leaving, Plan while active or entering', () => {
     setup({ active: false, pending: false })
-    expect(trigger('智能体模式').textContent).toBe('智能体模式')
-    expect(trigger('智能体模式').classList.contains(css.mode!)).toBe(true)
+    expect(group().getAttribute('aria-label')).toBe('模式：智能体')
+    expect(segment('智能体').getAttribute('aria-pressed')).toBe('true')
+    expect(segment('计划').getAttribute('aria-pressed')).toBe('false')
+    expect(segment('计划').classList.contains(css.segment!)).toBe(true)
     cleanup()
     setup({ active: true, pending: true })
-    expect(trigger('智能体模式')).toBeTruthy()
+    expect(segment('智能体').getAttribute('aria-pressed')).toBe('true')
     cleanup()
     setup({ active: true, pending: false })
-    expect(trigger('计划模式').textContent).toBe('计划模式')
+    expect(group().getAttribute('aria-label')).toBe('模式：计划')
+    expect(segment('计划').getAttribute('aria-pressed')).toBe('true')
     cleanup()
     setup({ active: false, pending: true })
-    expect(trigger('计划模式')).toBeTruthy()
+    expect(segment('计划').getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('enters plan mode once from the menu and ignores choosing the current mode', async () => {
+  it('enters plan mode once and ignores pressing the current mode', async () => {
     const { exitPlanMode, enterPlanMode } = setup({ active: false, pending: false })
-    fireEvent.click(trigger('智能体模式'))
-    choose(/^智能体模式/)
+    fireEvent.click(segment('智能体'))
     expect(enterPlanMode).not.toHaveBeenCalled()
-    fireEvent.click(trigger('智能体模式'))
-    choose(/^计划模式/)
+    fireEvent.click(segment('计划'))
     expect(enterPlanMode).toHaveBeenCalledTimes(1)
     expect(exitPlanMode).not.toHaveBeenCalled()
-    await waitFor(() => { expect((trigger('智能体模式') as HTMLButtonElement).disabled).toBe(false) })
+    await waitFor(() => { expect((segment('计划') as HTMLButtonElement).disabled).toBe(false) })
   })
 
-  it('leaves plan mode from the menu and follows the projection down', async () => {
+  it('leaves plan mode and follows the projection down', async () => {
     const { store, exitPlanMode } = setup({ active: true, pending: false })
-    fireEvent.click(trigger('计划模式'))
-    choose(/^智能体模式/)
+    fireEvent.click(segment('智能体'))
     expect(exitPlanMode).toHaveBeenCalledTimes(1)
     store.set({ value: { active: true, pending: true } })
-    await waitFor(() => { expect(trigger('智能体模式')).toBeTruthy() })
+    await waitFor(() => { expect(segment('智能体').getAttribute('aria-pressed')).toBe('true') })
   })
 
   it('disables under the locked owner prop', () => {
     setup({ active: true, pending: false }, vi.fn(), vi.fn(), true)
-    expect((trigger('计划模式') as HTMLButtonElement).disabled).toBe(true)
+    expect((segment('智能体') as HTMLButtonElement).disabled).toBe(true)
+    expect((segment('计划') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('surfaces admission and transport failures in the direction that failed', async () => {
@@ -89,18 +90,15 @@ describe('PlanChip', () => {
       .mockResolvedValueOnce('host said no')
       .mockRejectedValueOnce(new Error('network down'))
     setup({ active: true, pending: false }, exitPlanMode)
-    fireEvent.click(trigger('计划模式'))
-    choose(/^智能体模式/)
+    fireEvent.click(segment('智能体'))
     expect((await screen.findByText('退出计划模式失败')).getAttribute('title')).toBe('host said no')
-    fireEvent.click(trigger('计划模式'))
-    choose(/^智能体模式/)
+    fireEvent.click(segment('智能体'))
     expect(await screen.findByTitle('network down')).toBeTruthy()
     cleanup()
 
     const enterPlanMode = vi.fn().mockRejectedValueOnce('socket closed')
     setup({ active: false, pending: false }, vi.fn(), enterPlanMode)
-    fireEvent.click(trigger('智能体模式'))
-    choose(/^计划模式/)
+    fireEvent.click(segment('计划'))
     expect((await screen.findByText('进入计划模式失败')).getAttribute('title')).toBe('socket closed')
   })
 
@@ -110,16 +108,14 @@ describe('PlanChip', () => {
       { active: true, pending: false },
       vi.fn(() => new Promise<string | null>((done) => { resolve = done })),
     )
-    fireEvent.click(trigger('计划模式'))
-    choose(/^智能体模式/)
+    fireEvent.click(segment('智能体'))
     successful.view.unmount()
     expect(() => { resolve(null) }).not.toThrow()
 
     let reject!: (reason: unknown) => void
     const enterPlanMode = vi.fn(() => new Promise<string | null>((_done, fail) => { reject = fail }))
     const { view } = setup({ active: false, pending: false }, vi.fn(), enterPlanMode)
-    fireEvent.click(trigger('智能体模式'))
-    choose(/^计划模式/)
+    fireEvent.click(segment('计划'))
     view.unmount()
     expect(() => { reject(new Error('late')) }).not.toThrow()
   })

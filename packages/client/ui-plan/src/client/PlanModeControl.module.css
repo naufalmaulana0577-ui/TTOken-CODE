@@ -42,66 +42,53 @@
   opacity: 0.6;
   cursor: default;
 }
+/* TTOken Code: the composer's Agent and Plan buttons, one segmented control on a paper track. */
+.modeGroup {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-module-platform);
+}
 
-/* TTOken Code: the composer's mode menu trigger, reading Agent mode or Plan mode. */
-.mode {
+.segment {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 32px;
-  padding: 0 6px 0 8px;
+  padding: 0 12px;
   border: none;
   border-radius: var(--dsw-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 20px;
-  font-weight: 500;
+  font-weight: 400;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 @media (hover: hover) {
-  .mode:hover:not(:disabled) {
+  .segment:hover:not(:disabled):not([aria-pressed='true']) {
     background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-primary);
   }
 }
 
-.mode[data-plan] {
-  background: var(--dsw-specific-selector);
-  color: var(--dsw-alias-label-primary);
+.segment[aria-pressed='true'] {
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-weight: 500;
+  cursor: default;
 }
 
-.mode:focus-visible {
+.segment:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
-.mode:disabled {
+.segment:disabled {
   opacity: 0.6;
   cursor: default;
-}
-
-.modeChevron {
-  display: inline-flex;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.modeChevron svg {
-  width: 12px;
-  height: 12px;
-}
-
-.option {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.note {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
 }
 
 /* One 14px glyph slot ahead of the label (the access-mode trigger's layout):

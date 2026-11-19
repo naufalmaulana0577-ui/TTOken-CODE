@@ -29,8 +29,8 @@ export interface BranchChipInjected {
   readHead: (signal: AbortSignal) => Promise<GitHead | null>
 }
 
-/** Props shared by the chips: the composer's Session kit and the chip copy. */
-export type TtokenChipProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof TTOKEN_COMPOSER_NS>
+/** Props shared by the chips: the Session header's kit and the chip copy. */
+export type TtokenChipProps = PropsRuntime<'conversation.session.header.actions'> & PropsLocale<typeof TTOKEN_COMPOSER_NS>
 
 /** Interval between HEAD reads while the chip shows, besides reads on window focus. */
 const HEAD_REFRESH_MS = 15_000
@@ -51,7 +51,7 @@ export function FolderChip({ sessionId, useSessions, useWorkspaces, useContextMe
   return (
     <Tooltip label={t('folder.title', { path })} side="top" delayMs={500} portal>
       <button type="button" className={css.chip} {...trigger} onClick={(event) => { trigger.onContextMenu?.(event) }}>
-        <IconFolderCloseRegular size={16} />
+        <IconFolderCloseRegular size={14} />
         <span className={css.label}>{pathPartsOf(path).name}</span>
       </button>
     </Tooltip>
@@ -94,7 +94,7 @@ export function BranchChip({ readHead, t }: TtokenChipProps & InjectFace<BranchC
   return (
     <Tooltip label={head.kind === 'branch' ? t('branch.title') : t('branch.detached', { commit: head.commit })} side="top" delayMs={500} portal>
       <span className={css.chip} data-static="" tabIndex={0}>
-        <IconBranchOutlineRegular size={16} />
+        <IconBranchOutlineRegular size={14} />
         <span className={css.label}>{head.kind === 'branch' ? head.name : head.commit}</span>
       </span>
     </Tooltip>

@@ -128,8 +128,12 @@ async fn serve_static(request: &Request<Vec<u8>>, root: &Path) -> Response<Vec<u
     response
 }
 
-/// Join a request path under `root`, refusing anything that could leave it.
+/// Join a request path under `root`, refusing anything that could leave it. Backslashes are refused on every
+/// platform, so the accepted set does not depend on the host's path separator.
 fn contained_path(root: &Path, request_path: &str) -> Option<PathBuf> {
+    if request_path.contains('\\') {
+        return None;
+    }
     let relative = Path::new(request_path.trim_start_matches('/'));
     let mut joined = root.to_path_buf();
     for component in relative.components() {

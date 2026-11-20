@@ -34,6 +34,15 @@ if (project === undefined) {
 }
 const require = createRequire(join(project, 'package.json'))
 
+/**
+ * Load a dependency the way the Harness package that owns it does. A packaged payload nests some dependencies under
+ * their owner instead of hoisting them to the project, so resolution starts in the owner's directory.
+ */
+function requireFrom(owner, name) {
+  const manifest = join(project, 'node_modules', ...owner.split('/'), 'package.json')
+  return (existsSync(manifest) ? createRequire(manifest) : require)(name)
+}
+
 /** Outcome of one check, before timing is added. */
 class Unsupported extends Error {}
 
@@ -45,7 +54,7 @@ const withDeadline = (promise, label) => Promise.race([
 const checks = {
   /** node-pty opens a pseudo-terminal and reads a command's output from it. */
   async 'node-pty'() {
-    const pty = require('node-pty')
+    const pty = requireFrom('@deepseek-ai/dsh-subprocess-local', 'node-pty')
     const windows = process.platform === 'win32'
     const shell = windows ? (process.env.ComSpec ?? 'cmd.exe') : '/bin/sh'
     const args = windows ? ['/d', '/s', '/c', 'echo ttoken-pty-ok'] : ['-c', 'echo ttoken-pty-ok']
@@ -94,7 +103,7 @@ const checks = {
 
   /** The ripgrep binary searches a file. */
   async ripgrep() {
-    const { rgPath } = require('@vscode/ripgrep')
+    const { rgPath } = requireFrom('@deepseek-ai/dsh-util-ripgrep', '@vscode/ripgrep')
     const directory = mkdtempSync(join(tmpdir(), 'ttoken-rg-'))
     try {
       writeFileSync(join(directory, 'sample.txt'), 'first line\nttoken-rg-marker\n')

@@ -49,11 +49,16 @@ function Read-Timeline {
     @(Get-Content $timelinePath | Where-Object { $_ -ne '' } | ForEach-Object { $_ | ConvertFrom-Json })
 }
 
-$env:DSH_HOME = $harnessHome
-$env:TTOKEN_DESKTOP_TIMELINE = $timelinePath
-$env:TTOKEN_DESKTOP_MARK_COMPOSER = '1'
+# ProcessStartInfo.ArgumentList quotes each argument; the macOS payload path contains a space ("TTOken Code.app").
+$start = [System.Diagnostics.ProcessStartInfo]::new((Resolve-Path $Shell).Path)
+$start.UseShellExecute = $false
+$start.ArgumentList.Add('--payload')
+$start.ArgumentList.Add((Resolve-Path $Payload).Path)
+$start.Environment['DSH_HOME'] = $harnessHome
+$start.Environment['TTOKEN_DESKTOP_TIMELINE'] = $timelinePath
+$start.Environment['TTOKEN_DESKTOP_MARK_COMPOSER'] = '1'
 $launchedAt = Get-UnixMilliseconds
-$shellProcess = Start-Process -FilePath (Resolve-Path $Shell).Path -ArgumentList @('--payload', (Resolve-Path $Payload).Path) -PassThru
+$shellProcess = [System.Diagnostics.Process]::Start($start)
 Write-Host "Prototipe berjalan sebagai proses $($shellProcess.Id)"
 
 $summary = [ordered]@{

@@ -62,4 +62,4 @@ Sebelum push: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, 
 
 ## Batas Fase 0
 
-Hanya jalur boot yang ada. Belum ada tray, satu instance, layar sambutan, bilah judul Windows kustom, API `dshDesktop`, installer, atau updater; rinciannya di `PARITY.md`. Profil yang sudah ada dipakai apa adanya. Migrasi `pnpm-workspace.yaml` lama dan validasi `desktop-runtime.json` di `applyRelease` Electron belum dijalankan.
+Hanya jalur boot yang ada. Seperti Electron, jendela utama tersembunyi sampai halaman boot dan Host menjawab (paling lambat 30 detik, atau langsung saat halaman galat start dimuat). Belum ada tray, satu instance, layar sambutan, bilah judul Windows kustom, API `dshDesktop`, installer, atau updater; rinciannya di `PARITY.md`. Profil yang sudah ada dipakai apa adanya. Migrasi `pnpm-workspace.yaml` lama dan validasi `desktop-runtime.json` di `applyRelease` Electron belum dijalankan.

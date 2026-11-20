@@ -18,6 +18,7 @@ use socket::{Relay, Tickets};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tauri::http::{Response, StatusCode, header};
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
@@ -36,6 +37,8 @@ const TIMELINE_ENV: &str = "TTOKEN_DESKTOP_TIMELINE";
 const MARK_COMPOSER_ENV: &str = "TTOKEN_DESKTOP_MARK_COMPOSER";
 /// Page events `desktop_mark` accepts.
 const PAGE_EVENTS: [&str; 2] = ["composer-shown", "composer-ready"];
+/// The main window appears at the latest this long after startup, even when the page never boots.
+const REVEAL_DEADLINE: Duration = Duration::from_secs(30);
 /// Environment variable with a loopback port for WebView2's DevTools protocol; the measurement scripts drive the
 /// page through it, as they drive the Electron build through `--remote-debugging-port`.
 #[cfg(windows)]
@@ -54,6 +57,8 @@ struct Shell {
     stopping: AtomicBool,
     /// The Host has stopped; the next exit request may proceed.
     stopped: AtomicBool,
+    /// The main window has been shown.
+    revealed: AtomicBool,
 }
 
 struct Harness {
@@ -152,6 +157,7 @@ fn setup(
         timeline: Arc::clone(&timeline),
         stopping: AtomicBool::new(false),
         stopped: AtomicBool::new(false),
+        revealed: AtomicBool::new(false),
     }));
 
     let mark_composer = std::env::var_os(MARK_COMPOSER_ENV).is_some_and(|value| value == "1");
@@ -159,19 +165,29 @@ fn setup(
         .replace("__TTOKEN_APP_ORIGIN__", &serde_json::to_string(protocol::ORIGIN)?)
         .replace("__TTOKEN_MARK_COMPOSER__", if mark_composer { "true" } else { "false" });
     let page_timeline = Arc::clone(&timeline);
+    // Like the Electron shell, the window stays hidden until the page has booted against a ready Host, so the
+    // measured "window shown" time means the same in both builds.
     let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::CustomProtocol(protocol::app_url()))
         .title("TTOken Code")
+        .visible(false)
         .inner_size(1280.0, 820.0)
         .min_inner_size(520.0, 600.0)
         .background_color(tauri::window::Color(0xf4, 0xef, 0xe4, 0xff))
         .initialization_script(bridge)
         .on_navigation(protocol::is_app_url)
-        .on_page_load(move |_, page| {
+        .on_page_load(move |window, page| {
             let event = match page.event() {
                 PageLoadEvent::Started => "page-load-started",
                 PageLoadEvent::Finished => "page-load-finished",
             };
             page_timeline.mark(event, page.url().as_str());
+            // The startup error page never boots; show it as soon as it has loaded.
+            if matches!(page.event(), PageLoadEvent::Finished)
+                && let Some(shell) = window.try_state::<Arc<Shell>>()
+                && shell.harness.is_err()
+            {
+                reveal(&window, &shell, "startup-error");
+            }
         });
     #[cfg(windows)]
     let window = match std::env::var(DEBUG_PORT_ENV)
@@ -185,7 +201,34 @@ fn setup(
     };
     window.build()?;
     timeline.mark("window-created", "");
+    let handle = app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(REVEAL_DEADLINE).await;
+        if let (Some(window), Some(shell)) = (handle.get_webview_window(MAIN_WINDOW), handle.try_state::<Arc<Shell>>())
+        {
+            reveal(&window, &shell, "deadline");
+        }
+    });
     Ok(())
+}
+
+/// Show and focus the main window once, as the Electron shell does when the workspace is ready.
+fn reveal(window: &tauri::WebviewWindow, shell: &Shell, reason: &str) {
+    if shell.revealed.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    match window.show() {
+        Ok(()) => {
+            // Focus is best effort; the window is already visible.
+            let _ = window.set_focus();
+            shell.timeline.mark("window-shown", reason);
+        }
+        Err(error) => shell.timeline.mark("window-show-failed", &error.to_string()),
+    }
+}
+
+fn main_window(webview: &tauri::Webview) -> Option<tauri::WebviewWindow> {
+    webview.app_handle().get_webview_window(MAIN_WINDOW)
 }
 
 fn start_harness(
@@ -333,7 +376,12 @@ async fn desktop_boot(webview: tauri::Webview, shell: tauri::State<'_, Arc<Shell
     require_main_document(&webview)?;
     let harness = harness(&shell)?;
     shell.timeline.mark("boot-requested", "");
-    let ready = harness.host.ready().await?;
+    let ready = harness.host.ready().await;
+    // The page has booted and the Host has answered, ready or failed: the moment Electron shows its window.
+    if let Some(window) = main_window(&webview) {
+        reveal(&window, &shell, "boot");
+    }
+    let ready = ready?;
     shell.timeline.mark("boot-answered", "");
     Ok(BootReply {
         injections: ready.injections.clone(),
@@ -349,6 +397,9 @@ fn desktop_boot_failed(
 ) -> Result<(), String> {
     require_main_document(&webview)?;
     shell.timeline.mark("boot-failed", &message);
+    if let Some(window) = main_window(&webview) {
+        reveal(&window, &shell, "boot-failed");
+    }
     Ok(())
 }
 

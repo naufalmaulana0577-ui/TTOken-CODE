@@ -36,6 +36,13 @@ const TIMELINE_ENV: &str = "TTOKEN_DESKTOP_TIMELINE";
 const MARK_COMPOSER_ENV: &str = "TTOKEN_DESKTOP_MARK_COMPOSER";
 /// Page events `desktop_mark` accepts.
 const PAGE_EVENTS: [&str; 2] = ["composer-shown", "composer-ready"];
+/// Environment variable with a loopback port for WebView2's DevTools protocol; the measurement scripts drive the
+/// page through it, as they drive the Electron build through `--remote-debugging-port`.
+#[cfg(windows)]
+const DEBUG_PORT_ENV: &str = "TTOKEN_DESKTOP_DEBUG_PORT";
+/// WebView2 arguments wry uses when none are given; extra arguments replace them, so they are repeated.
+#[cfg(windows)]
+const WRY_BROWSER_ARGUMENTS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
 
 /// Shell state shared by the protocol handler, the commands, and the exit sequence.
 struct Shell {
@@ -152,7 +159,7 @@ fn setup(
         .replace("__TTOKEN_APP_ORIGIN__", &serde_json::to_string(protocol::ORIGIN)?)
         .replace("__TTOKEN_MARK_COMPOSER__", if mark_composer { "true" } else { "false" });
     let page_timeline = Arc::clone(&timeline);
-    WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::CustomProtocol(protocol::app_url()))
+    let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::CustomProtocol(protocol::app_url()))
         .title("TTOken Code")
         .inner_size(1280.0, 820.0)
         .min_inner_size(520.0, 600.0)
@@ -165,8 +172,18 @@ fn setup(
                 PageLoadEvent::Finished => "page-load-finished",
             };
             page_timeline.mark(event, page.url().as_str());
-        })
-        .build()?;
+        });
+    #[cfg(windows)]
+    let window = match std::env::var(DEBUG_PORT_ENV)
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+    {
+        Some(port) => {
+            window.additional_browser_args(&format!("{WRY_BROWSER_ARGUMENTS} --remote-debugging-port={port}"))
+        }
+        None => window,
+    };
+    window.build()?;
     timeline.mark("window-created", "");
     Ok(())
 }

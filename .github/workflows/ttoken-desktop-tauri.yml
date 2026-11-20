@@ -1,0 +1,199 @@
+name: TTOken Code · Desktop · Tauri
+
+# Fase 0 PRD-TAURI (ttoken/docs/PRD-TAURI.md): membangun prototipe shell Tauri
+# untuk Windows x64 dan macOS Apple silicon, memeriksa addon native di Node
+# biasa, lalu membuka prototipe dengan payload build Electron dari commit yang
+# sama sampai composer tampil, lengkap dengan screenshot. Build Electron tetap
+# dibangun workflow ttoken-desktop-unsigned.yml (K5).
+#
+# Artifacts:
+# - ttoken-code-tauri-prototype-windows-x64: exe prototipe dan skrip ukur Fase 0
+# - tauri-smoke-<platform>: screenshot, timeline, log Host, status addon native
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ttoken/desktop-tauri']
+    paths-ignore: ['**/*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttoken-desktop-tauri-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Izinkan path panjang
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@v7.0.1
+      - name: Toolchain Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          rustc --version
+      - name: Pulihkan cache Cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ttoken/desktop-tauri/target
+          key: ttoken-tauri-cargo-win-x64-${{ hashFiles('ttoken/desktop-tauri/Cargo.lock') }}
+          restore-keys: ttoken-tauri-cargo-win-x64-
+      - name: Periksa Rust (fmt, clippy, test)
+        working-directory: ttoken/desktop-tauri
+        run: |
+          cargo fmt --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo clippy --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked
+          exit $LASTEXITCODE
+      - name: Bangun prototipe
+        working-directory: ttoken/desktop-tauri
+        run: |
+          cargo build --release --locked
+          exit $LASTEXITCODE
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Periksa identitas TTOken Code
+        run: node ttoken/apply-brand.mjs --check
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+      - name: Pulihkan cache packaging
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/ttoken-desktop-cache
+          key: ttoken-desktop-win-x64-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ttoken-desktop-win-x64-
+      - name: Arahkan cache packaging
+        run: '"DSH_DESKTOP_PACKAGE_CACHE_DIR=$(Join-Path $env:RUNNER_TEMP ''ttoken-desktop-cache'')" >> $env:GITHUB_ENV'
+      - name: Tulis konfigurasi packaging
+        run: Set-Content -Path apps/desktop/.env.windows -Encoding utf8 -Value 'DSH_DESKTOP_APP_ID=dev.ttoken.code'
+      - name: Bangun payload (build Electron tanpa installer)
+        working-directory: apps/desktop
+        run: |
+          pnpm run package:win:x64:dir -- --unsigned
+          exit $LASTEXITCODE
+      - name: Cari payload
+        run: |
+          $unpacked = Get-ChildItem apps/desktop/.desktop-build/targets/win-x64 -Recurse -Directory -Filter win-unpacked | Select-Object -First 1
+          if ($null -eq $unpacked) { throw 'folder win-unpacked tidak ditemukan' }
+          $resources = Join-Path $unpacked.FullName 'resources'
+          Write-Host "Payload: $resources"
+          "TTOKEN_PAYLOAD=$resources" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'tauri-smoke') | Out-Null
+      - name: Periksa addon native di Node biasa
+        run: |
+          $node = Join-Path $env:TTOKEN_PAYLOAD 'runtime/primary-runtime/dependencies/node/bin/node.exe'
+          & $node ttoken/desktop-tauri/scripts/addon-smoke.mjs $env:TTOKEN_PAYLOAD --json (Join-Path $env:RUNNER_TEMP 'tauri-smoke/addons.json')
+          exit $LASTEXITCODE
+      - name: Buka prototipe sampai composer tampil
+        run: |
+          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop.exe -Payload $env:TTOKEN_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
+      - name: Salin log shell
+        if: always()
+        run: |
+          $logs = Join-Path $env:LOCALAPPDATA 'dev.ttoken.code/logs'
+          if (Test-Path $logs) { Copy-Item -Recurse $logs (Join-Path $env:RUNNER_TEMP 'tauri-smoke/logs') }
+      - name: Kemas prototipe dan skrip ukur
+        run: |
+          $kit = Join-Path $env:RUNNER_TEMP 'kit'
+          New-Item -ItemType Directory -Force $kit | Out-Null
+          Copy-Item ttoken/desktop-tauri/target/release/ttoken-code-desktop.exe $kit
+          Copy-Item -Recurse ttoken/desktop-tauri/measure (Join-Path $kit 'measure')
+          Copy-Item ttoken/desktop-tauri/scripts/addon-smoke.mjs $kit
+      - name: Unggah prototipe
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ttoken-code-tauri-prototype-windows-x64
+          path: ${{ runner.temp }}/kit
+          if-no-files-found: error
+      - name: Unggah hasil smoke
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: tauri-smoke-windows-x64
+          path: ${{ runner.temp }}/tauri-smoke
+          if-no-files-found: ignore
+
+  mac-arm64:
+    name: macOS Apple silicon
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Toolchain Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+      - name: Pulihkan cache Cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ttoken/desktop-tauri/target
+          key: ttoken-tauri-cargo-mac-arm64-${{ hashFiles('ttoken/desktop-tauri/Cargo.lock') }}
+          restore-keys: ttoken-tauri-cargo-mac-arm64-
+      - name: Bangun prototipe
+        working-directory: ttoken/desktop-tauri
+        run: cargo build --release --locked
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Periksa identitas TTOken Code
+        run: node ttoken/apply-brand.mjs --check
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+      - name: Pulihkan cache packaging
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/ttoken-desktop-cache
+          key: ttoken-desktop-mac-arm64-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ttoken-desktop-mac-arm64-
+      - name: Arahkan cache packaging
+        run: echo "DSH_DESKTOP_PACKAGE_CACHE_DIR=$RUNNER_TEMP/ttoken-desktop-cache" >> "$GITHUB_ENV"
+      - name: Bangun payload (build Electron tanpa DMG)
+        working-directory: apps/desktop
+        run: pnpm run package:mac:arm64:dir -- --unsigned
+      - name: Cari payload
+        run: |
+          app="$(find apps/desktop/.desktop-build/targets/mac-arm64 -type d -name 'TTOken Code.app' -prune | head -n 1)"
+          if [ -z "$app" ]; then echo 'TTOken Code.app tidak ditemukan' >&2; exit 1; fi
+          echo "Payload: $PWD/$app/Contents/Resources"
+          echo "TTOKEN_PAYLOAD=$PWD/$app/Contents/Resources" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/tauri-smoke"
+      - name: Periksa addon native di Node biasa
+        run: |
+          "$TTOKEN_PAYLOAD/runtime/primary-runtime/dependencies/node/bin/node" ttoken/desktop-tauri/scripts/addon-smoke.mjs "$TTOKEN_PAYLOAD" --json "$RUNNER_TEMP/tauri-smoke/addons.json"
+      - name: Buka prototipe di WKWebView sampai composer tampil
+        shell: pwsh
+        run: |
+          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop -Payload $env:TTOKEN_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
+      - name: Salin log shell
+        if: always()
+        run: |
+          if [ -d "$HOME/Library/Logs/dev.ttoken.code" ]; then cp -R "$HOME/Library/Logs/dev.ttoken.code" "$RUNNER_TEMP/tauri-smoke/logs"; fi
+      - name: Unggah hasil smoke
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: tauri-smoke-mac-arm64
+          path: ${{ runner.temp }}/tauri-smoke
+          if-no-files-found: ignore

@@ -10,7 +10,8 @@ resident set size instead; those numbers are recorded separately and are not com
 
 Set-StrictMode -Version Latest
 
-if ($IsWindows) {
+# The type survives a second import in the same session, so it is added once.
+if ($IsWindows -and -not ('TTokenWindows' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;

@@ -98,6 +98,7 @@ finally {
     catch { Write-Warning "screenshot gagal: $($_.Exception.Message)" }
     if ($tree.Count -eq 0 -and -not $shellProcess.HasExited) { $tree = @(Get-ProcessTree -RootId $shellProcess.Id) }
 
+    if (-not $shellProcess.HasExited) { $shellProcess.Refresh() }
     if ($IsWindows -and -not $shellProcess.HasExited -and $shellProcess.CloseMainWindow()) {
         if ($shellProcess.WaitForExit(30000)) { $summary.exit = 'graceful' } else { $summary.exit = 'timeout' }
     }

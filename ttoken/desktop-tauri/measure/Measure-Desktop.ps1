@@ -158,6 +158,7 @@ function Stop-Desktop {
             $null = $quitter.WaitForExit(30000)
         }
         else {
+            $Launch.Process.Refresh()
             $null = $Launch.Process.CloseMainWindow()
         }
     }

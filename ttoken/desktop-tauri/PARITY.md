@@ -88,7 +88,7 @@ Tambahan khusus Tauri (tidak ada di Electron): `__DSH_TRANSPORT__` dibuat access
 | Diagnostik | `crash-report.ts` | Laporan crash ditulis shell sebelum dialog pemulihan. Port ke Rust bersama dialognya; tail konsol halaman diambil lewat init script | fase 1 |
 | Diagnostik | `operation-journal.ts`, `operation-history.ts`, `operation-report.ts`, `operation-report-job.ts`, `operation-report-worker.ts` | Jurnal pesan `plugin-operation` dari Host, ditempel ke laporan crash. Shell Tauri sekarang menerima lalu mengabaikan pesan itu. Port jurnal ke Rust | fase 2 |
 | Operasi paket | `runtime-tree.ts`, `core-package-set.ts` | Dipakai skrip packaging dan validasi saat start; tetap di skrip build Node | tidak berubah |
-| Browser samping | `browser-guests.ts`, `preload-browser.ts` | Fallback iframe dulu (K3) | fase 3 |
+| Browser samping | `browser-guests.ts`, `preload-browser.ts` | Fallback iframe dulu (K3). Filter navigasi prototipe sudah membiarkan isi iframe di macOS dan Linux | fase 3 |
 | Paket payload | `scripts/electron-builder-config.mjs` (`asar`, `asarUnpack`), `scripts/windows-asar-unpack.mjs` | Electron mengemas project `dsh` ke `app.asar`, yang tidak bisa dibaca Node biasa. Fase 0 memakai `scripts/extract-payload.mjs`; installer Tauri mengirim `dsh` sebagai berkas biasa | fase 0 lewat ekstrak; installer fase 4 |
 | Update | `update-*.ts`, `updates/electron-updater/*`, `preload-update-dialog.ts`, `release.ts` | `tauri-plugin-updater` | fase 4 |
 | Update wajib | `mandatory-update-*.ts`, `preload-mandatory*.ts`, `policy-test-auth.ts` | Menunggu layanan kebijakan TTOken | ditunda |

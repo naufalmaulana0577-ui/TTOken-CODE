@@ -106,6 +106,9 @@ pub fn locate(explicit: Option<PathBuf>) -> Result<Payload, String> {
     };
     let mut rejected = Vec::new();
     for root in candidates {
+        // The Host runs in the profile directory, so every payload path it receives must be absolute. Not
+        // canonicalized: Node mishandles the `\\?\` form that `canonicalize` returns on Windows.
+        let root = std::path::absolute(&root).unwrap_or(root);
         match Payload::from_root(&root) {
             Ok(payload) => return Ok(payload),
             Err(reason) => rejected.push(reason),

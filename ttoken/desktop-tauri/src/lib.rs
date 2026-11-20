@@ -107,6 +107,19 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("cannot create the application event loop");
     app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            // macOS Cmd+Q and the default app menu's Quit end the event loop without ExitRequested, so the Host
+            // is stopped here; the call returns at once when the exit sequence below already owns the stop.
+            if let Some(shell) = handle.try_state::<Arc<Shell>>()
+                && let Ok(harness) = &shell.harness
+                && !shell.stopped.load(Ordering::SeqCst)
+            {
+                tauri::async_runtime::block_on(harness.host.stop());
+                shell.stopped.store(true, Ordering::SeqCst);
+                shell.timeline.mark("exit", "loop-ended");
+            }
+            return;
+        }
         if let RunEvent::ExitRequested { api, .. } = event {
             let Some(shell) = handle.try_state::<Arc<Shell>>().map(|state| Arc::clone(&state)) else {
                 return;
@@ -174,13 +187,24 @@ fn setup(
         .min_inner_size(520.0, 600.0)
         .background_color(tauri::window::Color(0xf4, 0xef, 0xe4, 0xff))
         .initialization_script(bridge)
-        .on_navigation(protocol::is_app_url)
+        .on_navigation(allow_navigation)
         .on_page_load(move |window, page| {
             let event = match page.event() {
                 PageLoadEvent::Started => "page-load-started",
                 PageLoadEvent::Finished => "page-load-finished",
             };
             page_timeline.mark(event, page.url().as_str());
+            // Page load events describe the main frame. A main frame that left the application origin, which only
+            // WKWebView and WebKitGTK allow (see allow_navigation), is sent back.
+            if matches!(page.event(), PageLoadEvent::Started)
+                && !protocol::is_app_url(page.url())
+                && page.url().scheme() != "about"
+            {
+                page_timeline.mark("navigation-reverted", page.url().as_str());
+                if let Err(error) = window.navigate(protocol::app_url()) {
+                    page_timeline.mark("navigation-revert-failed", &error.to_string());
+                }
+            }
             // The startup error page never boots; show it as soon as it has loaded.
             if matches!(page.event(), PageLoadEvent::Finished)
                 && let Some(shell) = window.try_state::<Arc<Shell>>()
@@ -210,6 +234,16 @@ fn setup(
         }
     });
     Ok(())
+}
+
+/// Whether the main window may load `url`.
+///
+/// WebView2 asks only about top-level navigations, so on Windows only the application origin passes. WKWebView and
+/// WebKitGTK ask about every frame without saying which, so there the content that iframes load also passes (the side
+/// browser's fallback and HTML previews), and `on_page_load` keeps the main frame on the application origin.
+fn allow_navigation(url: &tauri::Url) -> bool {
+    protocol::is_app_url(url)
+        || (cfg!(not(windows)) && matches!(url.scheme(), "http" | "https" | "blob" | "about" | "data"))
 }
 
 /// Show and focus the main window once, as the Electron shell does when the workspace is ready.

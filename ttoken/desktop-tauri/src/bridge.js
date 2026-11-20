@@ -1,9 +1,11 @@
 // Bridge between the TTOken Code shell and the Web client in the main window (decision D6).
 //
-// Tauri runs this before any page script, in the main frame only; the origin check below keeps it inert if the
-// frame ever navigates elsewhere. This build exposes `dshDesktopBoot` and the WebSocket ticket hook. Without the
-// other Desktop globals the client keeps its Web behavior.
+// Tauri runs this before any page script. WKWebView and WebKitGTK run it in the main frame only, but WebView2 runs
+// initialization scripts in every frame, so the bridge stops itself in iframes; the origin check keeps it inert if
+// the main frame ever navigates elsewhere. This build exposes `dshDesktopBoot` and the WebSocket ticket hook.
+// Without the other Desktop globals the client keeps its Web behavior.
 (() => {
+  if (window.top !== window) return
   const APP_ORIGIN = __TTOKEN_APP_ORIGIN__
   if (`${location.protocol}//${location.host}` !== APP_ORIGIN) return
 

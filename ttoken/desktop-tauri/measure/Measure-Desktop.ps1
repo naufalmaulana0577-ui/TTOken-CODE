@@ -179,8 +179,25 @@ function Stop-Desktop {
     [ordered]@{ graceful = $graceful; leftover = @($left | ForEach-Object { "$($_.Name) ($($_.Id))" }) }
 }
 
+function Assert-NoUserInstance {
+    <#
+    TTOken Code milik user harus ditutup dulu: Stop-Strays menghentikan paksa proses dengan path yang sama, dan app yang
+    berjalan ikut mengganggu angka. Proses utama instance user tidak membawa --type, --user-data-dir, atau entry Host.
+    #>
+    $running = @(Get-CimInstance Win32_Process | Where-Object {
+            $_.ExecutablePath -eq $electron -and $_.CommandLine -notmatch '--type=|--user-data-dir=|dsh-desktop-host'
+        })
+    if ($running.Count -gt 0) {
+        throw 'TTOken Code masih berjalan, mungkin di tray. Keluar lewat menu tray, lalu jalankan skrip ini lagi.'
+    }
+}
+
 function Stop-Strays {
-    <# Hentikan sisa proses dari run sebelumnya: shell kedua build dan Node dari payload, lewat path asli atau tautannya. #>
+    <#
+    Hentikan sisa proses dari run sebelumnya: shell kedua build dan Node dari payload, lewat path asli atau tautannya.
+    Bila TTOken Code milik user dibuka di tengah pengukuran, skrip berhenti alih-alih menghentikannya.
+    #>
+    Assert-NoUserInstance
     $paths = @($electron, $tauri, $payloadNode, (Join-Path $payload 'runtime\primary-runtime\dependencies\node\bin\node.exe')) |
         Where-Object { $_ }
     Get-Process | Where-Object { $_.Path -and $paths -contains $_.Path } | ForEach-Object {
@@ -298,6 +315,8 @@ function Invoke-WarmUp {
     Dengan -AskUser, skrip menunggu Enter dulu, supaya user sempat mengisi layar sambutan Electron.
     #>
     param([int] $ComposerTimeoutSeconds = 180, [switch] $AskUser)
+    # Sisa run yang terputus memegang kunci instance Electron dengan --user-data-dir yang sama.
+    Stop-Strays
     $port = Get-FreePort
     $launch = Start-Desktop -Name $Build -Port $port
     $session = $null
@@ -320,6 +339,8 @@ function Invoke-WarmUp {
         $null = Stop-Desktop -Launch $launch
     }
 }
+
+Assert-NoUserInstance
 
 if ($Setup) {
     Stop-Strays
@@ -373,23 +394,32 @@ function Assert-CompileCache {
     $result.settings['compileCacheEntries'] = $entries.Count
 }
 
-if ($Cold) {
-    Write-Host 'Start dingin: satu peluncuran tanpa pemanasan.'
-    if ($CompileCache) { Assert-CompileCache }
-    $result.records += Invoke-Launch -ScenarioName Cold -Run 1 -RunDirectory $runDirectory
-}
-else {
-    Write-Host 'Pemanasan (tidak dicatat).'
-    Invoke-WarmUp
-    if ($CompileCache) { Assert-CompileCache }
-    foreach ($run in 1..$Runs) {
-        foreach ($name in $Scenario) {
-            Write-Host ("{0} {1} run {2}/{3}" -f $Build, $name, $run, $Runs)
-            $result.records += Invoke-Launch -ScenarioName $name -Run $run -RunDirectory $runDirectory
-            Start-Sleep -Seconds 5
+# Bila pengukuran berhenti di tengah, run yang sudah selesai tetap ditulis, ditandai "aborted".
+$aborted = $null
+try {
+    if ($Cold) {
+        Write-Host 'Start dingin: satu peluncuran tanpa pemanasan.'
+        if ($CompileCache) { Assert-CompileCache }
+        $result.records += Invoke-Launch -ScenarioName Cold -Run 1 -RunDirectory $runDirectory
+    }
+    else {
+        Write-Host 'Pemanasan (tidak dicatat).'
+        Invoke-WarmUp
+        if ($CompileCache) { Assert-CompileCache }
+        foreach ($run in 1..$Runs) {
+            foreach ($name in $Scenario) {
+                Write-Host ("{0} {1} run {2}/{3}" -f $Build, $name, $run, $Runs)
+                $result.records += Invoke-Launch -ScenarioName $name -Run $run -RunDirectory $runDirectory
+                Start-Sleep -Seconds 5
+            }
         }
     }
 }
+catch {
+    $aborted = $_.Exception.Message
+    Write-Warning "pengukuran berhenti: $aborted"
+}
+$result['aborted'] = $aborted
 
 $result.versions = [ordered]@{
     electron = (Get-Item $electron).VersionInfo.ProductVersion
@@ -399,20 +429,24 @@ $result.versions = [ordered]@{
 $jsonPath = Join-Path $runDirectory 'result.json'
 $result | ConvertTo-Json -Depth 12 | Set-Content -Path $jsonPath -Encoding utf8
 
-$lines = @("# $label ($stamp)", '', "Mesin: $($result.machine.os), $($result.machine.cpu)", '',
-    '| Skenario | Run sukses | Memori total median (MB) | (a) jendela median (ms) | (b) composer median (ms) | (c) ganti sesi median (ms) |',
-    '| --- | --- | --- | --- | --- | --- |')
+$lines = @("# $label ($stamp)", '', "Mesin: $($result.machine.os), $($result.machine.cpu)", '')
+if ($null -ne $aborted) { $lines += "Pengukuran berhenti sebelum selesai: $aborted", '' }
+$lines += '| Skenario | Run sukses | Memori total median (MB) | (a) jendela median (ms) | (b) composer median (ms) | (b) batas atas | (c) ganti sesi median (ms) |'
+$lines += '| --- | --- | --- | --- | --- | --- | --- |'
 foreach ($name in @($result.records | ForEach-Object scenario | Select-Object -Unique)) {
     $ok = @($result.records | Where-Object { $_.scenario -eq $name -and $null -eq $_.failure })
     $memory = Get-Median -Values @($ok | ForEach-Object { [double] $_.memory.medianTotal })
     $window = Get-Median -Values @($ok | ForEach-Object { [double] $_.windowMs })
     $composerTimes = Get-Median -Values @($ok | ForEach-Object { [double] $_.composerMs })
+    # Composer yang sudah siap sebelum pengamat terpasang: waktunya hanya batas atas.
+    $late = @($ok | Where-Object composerLate).Count
     $switches = Get-Median -Values @($ok | Where-Object { $_.details -and $_.details.Contains('switchMs') } | ForEach-Object { Get-Median -Values @($_.details.switchMs) })
-    $lines += '| {0} | {1}/{2} | {3} | {4} | {5} | {6} |' -f $name, $ok.Count, @($result.records | Where-Object scenario -EQ $name).Count,
+    $lines += '| {0} | {1}/{2} | {3} | {4} | {5} | {6} | {7} |' -f $name, $ok.Count, @($result.records | Where-Object scenario -EQ $name).Count,
     $(if ($null -ne $memory) { [Math]::Round($memory / 1MB, 1) } else { '-' }), $(if ($null -ne $window) { [Math]::Round($window) } else { '-' }),
-    $(if ($null -ne $composerTimes) { [Math]::Round($composerTimes) } else { '-' }), $(if ($null -ne $switches) { [Math]::Round($switches, 1) } else { '-' })
+    $(if ($null -ne $composerTimes) { [Math]::Round($composerTimes) } else { '-' }), $late, $(if ($null -ne $switches) { [Math]::Round($switches, 1) } else { '-' })
 }
 $lines | Set-Content -Path (Join-Path $runDirectory 'summary.md') -Encoding utf8
 $lines | ForEach-Object { Write-Host $_ }
 Write-Host ''
 Write-Host "Hasil: $jsonPath"
+if ($null -ne $aborted) { throw "pengukuran berhenti sebelum selesai; hasil sebagian di $jsonPath" }

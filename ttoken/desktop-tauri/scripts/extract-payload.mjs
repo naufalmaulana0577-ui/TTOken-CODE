@@ -165,14 +165,17 @@ function extract(context, entry, destination, depth) {
   context.bytes += node.size
 }
 
+/** Throw unless `path` is absent, empty, or a directory this script wrote. */
+function assertReplaceable(path) {
+  if (existsSync(path) && !existsSync(join(path, MARKER)) && readdirSync(path).length > 0) {
+    throw new Error(`${path} exists and was not written by extract-payload.mjs`)
+  }
+}
+
 /** Remove a directory this script wrote; its runtime link is unlinked first so the runtime is never touched. */
 function removeOwnDirectory(path) {
   if (!existsSync(path)) return
-  if (!existsSync(join(path, MARKER))) {
-    if (readdirSync(path).length > 0) throw new Error(`${path} exists and was not written by extract-payload.mjs`)
-    rmSync(path, { recursive: true, force: true })
-    return
-  }
+  assertReplaceable(path)
   const link = join(path, 'runtime')
   let stat
   try {
@@ -184,7 +187,22 @@ function removeOwnDirectory(path) {
     if (!stat.isSymbolicLink()) throw new Error(`${link} is not a link; remove ${path} by hand`)
     unlinkSync(link)
   }
-  rmSync(path, { recursive: true, force: true })
+  // Antivirus and indexers briefly hold new files open on Windows; rmSync retries EBUSY and EPERM.
+  rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+}
+
+/** Rename a directory, retrying for up to 30 seconds while Windows reports it in use. */
+function renameWithRetry(from, to) {
+  const deadline = performance.now() + 30_000
+  for (let wait = 50; ; wait = Math.min(wait * 2, 1000)) {
+    try {
+      renameSync(from, to)
+      return
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || performance.now() + wait > deadline) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait)
+    }
+  }
 }
 
 const archiveStat = statSync(archive)
@@ -209,7 +227,11 @@ if (upToDate()) {
 } else {
   const started = performance.now()
   const staging = `${output}.partial`
+  const previous = `${output}.previous`
+  // Refuse a foreign output directory before any work, not after the extraction.
+  assertReplaceable(output)
   removeOwnDirectory(staging)
+  removeOwnDirectory(previous)
   mkdirSync(staging, { recursive: true })
   writeFileSync(join(staging, MARKER), '')
   const context = {
@@ -226,12 +248,19 @@ if (upToDate()) {
     symlinkSync(runtime, join(staging, 'runtime'), 'junction')
     const summary = { source, files: context.files, bytes: context.bytes, links: context.links }
     writeFileSync(join(staging, 'payload.json'), `${JSON.stringify(summary, null, 2)}\n`)
+    // The earlier payload stays usable until the new one is in place.
+    if (existsSync(output)) renameWithRetry(output, previous)
+    try {
+      renameWithRetry(staging, output)
+    } catch (error) {
+      if (existsSync(previous) && !existsSync(output)) renameWithRetry(previous, output)
+      throw error
+    }
   } catch (error) {
     removeOwnDirectory(staging)
     throw error
   }
-  removeOwnDirectory(output)
-  renameSync(staging, output)
+  removeOwnDirectory(previous)
   const seconds = ((performance.now() - started) / 1000).toFixed(1)
   const megabytes = (context.bytes / 1024 / 1024).toFixed(1)
   console.log(`extracted ${context.files} files (${megabytes} MB, ${context.links} links) in ${seconds} s into ${join(output, PROJECT)}`)

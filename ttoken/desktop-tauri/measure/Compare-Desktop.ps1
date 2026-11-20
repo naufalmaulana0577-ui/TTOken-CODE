@@ -76,7 +76,7 @@ $rows = foreach ($metric in $metrics) {
     $electronValues = @(Get-RunValues -Result $electronResult -Metric $metric.Key)
     $tauriValues = @(Get-RunValues -Result $tauriResult -Metric $metric.Key)
     if ($electronValues.Count -eq 0 -or $tauriValues.Count -eq 0) {
-        [pscustomobject]@{ Metric = $metric.Name; Unit = $metric.Unit; Electron = $null; Tauri = $null; Difference = $null; Variation = $null; Pass = $false; Note = 'tidak ada data' }
+        [pscustomobject]@{ Metric = $metric.Name; Unit = $metric.Unit; Electron = $null; Tauri = $null; Difference = $null; Variation = $null; Pass = $false; Undecided = $false; Note = 'tidak ada data' }
         continue
     }
     $electronMedian = Get-Median -Values $electronValues
@@ -84,6 +84,20 @@ $rows = foreach ($metric in $metrics) {
     $variation = [Math]::Max(($electronValues | Measure-Object -Maximum -Minimum | ForEach-Object { $_.Maximum - $_.Minimum }),
         ($tauriValues | Measure-Object -Maximum -Minimum | ForEach-Object { $_.Maximum - $_.Minimum }))
     $difference = $electronMedian - $tauriMedian
+    $pass = $difference -gt 0 -and $difference -gt $variation
+    $undecided = $false
+    $note = "$($electronValues.Count) dan $($tauriValues.Count) run"
+    if ($metric.Key -eq 'composer') {
+        # (b) yang terlambat diamati hanya batas atas. Di Electron, batas atas bisa membesar-besarkan keunggulan Tauri.
+        $electronLate = @($electronResult.records | Where-Object { $null -eq $_.failure -and $_.composerLate }).Count
+        $tauriLate = @($tauriResult.records | Where-Object { $null -eq $_.failure -and $_.composerLate }).Count
+        if ($electronLate -gt 0 -and $pass) {
+            $pass = $false
+            $undecided = $true
+            $note += "; $electronLate run Electron hanya batas atas, ulangi pengukurannya"
+        }
+        if ($tauriLate -gt 0) { $note += "; $tauriLate run Tauri hanya batas atas" }
+    }
     [pscustomobject]@{
         Metric     = $metric.Name
         Unit       = $metric.Unit
@@ -91,8 +105,9 @@ $rows = foreach ($metric in $metrics) {
         Tauri      = $tauriMedian / $metric.Scale
         Difference = $difference / $metric.Scale
         Variation  = $variation / $metric.Scale
-        Pass       = $difference -gt 0 -and $difference -gt $variation
-        Note       = "$($electronValues.Count) dan $($tauriValues.Count) run"
+        Pass       = $pass
+        Undecided  = $undecided
+        Note       = $note
     }
 }
 
@@ -112,9 +127,21 @@ foreach ($row in $rows) {
     (& $format $row.Difference), (& $format $row.Variation), $(if ($row.Pass) { 'ya' } else { 'tidak' }), $row.Note
 }
 $passed = @($rows | Where-Object Pass).Count -eq $rows.Count
+$incomplete = @(@($electronResult, $tauriResult) | Where-Object { $_.aborted })
 $lines += ''
-$lines += $(if ($passed) { 'Hasil: **lolos K1**, semua metrik lebih baik dengan selisih di atas variasi antar-run.' }
-    else { 'Hasil: **tidak lolos K1**; metrik yang tidak lolos ditandai "tidak".' })
+if ($incomplete.Count -gt 0) {
+    $lines += 'Hasil: **belum bisa dinilai**; pengukuran ' + (($incomplete | ForEach-Object label) -join ' dan ') +
+    ' berhenti sebelum selesai. Ulangi sebelum memutuskan K1.'
+}
+elseif ($passed) {
+    $lines += 'Hasil: **lolos K1**, semua metrik lebih baik dengan selisih di atas variasi antar-run.'
+}
+elseif (@($rows | Where-Object { -not $_.Pass -and -not $_.Undecided }).Count -eq 0) {
+    $lines += 'Hasil: **belum bisa dinilai**; (b) Electron hanya batas atas di sebagian run. Ulangi pengukuran Electron.'
+}
+else {
+    $lines += 'Hasil: **tidak lolos K1**; metrik yang tidak lolos ditandai "tidak".'
+}
 
 if ($OutputPath) { $lines | Set-Content -Path $OutputPath -Encoding utf8 }
 $lines | ForEach-Object { Write-Host $_ }

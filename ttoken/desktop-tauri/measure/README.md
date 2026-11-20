@@ -6,7 +6,7 @@ Skrip ini menghasilkan angka untuk gerbang Fase 0 (K1 di PRD): RAM dan waktu bui
 
 | Bagian | Keputusan |
 | --- | --- |
-| Operasi user | (a) start proses sampai jendela utama tampil; (b) start sampai composer bisa diketik; (c) klik sesi di sidebar sampai jawaban terakhir sesi itu tampil |
+| Operasi user | (a) start proses sampai jendela utama tampil; (b) start sampai composer bisa diketik; (c) klik sesi di sidebar sampai jawaban terakhir sesi itu tampil. Kedua build menyembunyikan jendela utama sampai halaman boot dan Host siap (Electron lewat `show: false` di `apps/desktop/src/main.ts`, prototipe dengan aturan yang sama), jadi (a) adalah titik yang sama |
 | Workload | Home Harness terpisah (`%LOCALAPPDATA%\ttoken-measure\home`) dengan workspace kecil (README dan 20 modul kecil) dan sesi sintetis dari `seed-fixture.mjs`: satu sesi 240 giliran (S2) dan tiga sesi 30 giliran (S3), dengan teks, reasoning, blok kode, dan hasil tool. Isinya dari konstanta tetap, tanpa data user |
 | Skenario | S1: idle 2 menit setelah composer siap. S2: buka sesi panjang, muat semua halaman lama dengan menggulir ke atas, lalu gulir ke bawah selayar demi selayar. S3: buka panel Device dan view Issues, kembali ke Chat, lalu pindah sesi B, C, A, B, C, A |
 | Jalur | Build yang dirilis: installer Electron dari CI dan exe prototipe dari CI, dengan payload instalasi Electron yang sama. Electron membaca project `dsh` dari dalam `app.asar`; Tauri membacanya sebagai berkas biasa hasil ekstrak arsip yang sama (`%LOCALAPPDATA%\ttoken-measure\payload`), seperti nanti dikirim installer Tauri. Halaman dikendalikan lewat DevTools protocol di kedua build (`--remote-debugging-port` di Electron, `TTOKEN_DESKTOP_DEBUG_PORT` di Tauri) |
@@ -21,7 +21,13 @@ Tidak diukur: start dingin setelah reboot dijalankan terpisah (`-Cold`), dan mac
 
 Semua perintah dijalankan dengan PowerShell 7 dari folder hasil ekstrak artifact `ttoken-code-tauri-prototype-windows-x64` (berisi `ttoken-code-desktop.exe`, folder `measure`, dan folder `scripts`).
 
-1. Pasang installer Electron dari run CI yang sama (`ttoken-code-windows-x64-unsigned`). Tutup aplikasi lain yang berat.
+0. Berkas yang diunduh dari halaman Actions ditandai Windows sebagai berkas dari internet, dan PowerShell 7 menolak menjalankan skrip bertanda itu yang tidak bertanda tangan. Hapus tandanya sekali dari folder hasil ekstrak:
+
+   ```powershell
+   Get-ChildItem -Recurse | Unblock-File
+   ```
+
+1. Pasang installer Electron dari run CI yang sama (`ttoken-code-windows-x64-unsigned`). Keluar dari TTOken Code, termasuk dari tray; skrip berhenti bila TTOken Code milikmu masih berjalan, karena proses sisa pengukuran dihentikan paksa. Tutup juga aplikasi lain yang berat.
 2. Siapkan home ukur sekali. Skrip mengekstrak project `dsh` dari `app.asar` instalasi Electron ke folder kerja (sekali, beberapa menit), membuat sesi fixture, lalu membuka TTOken Code dengan home ukur. Isi API key TTOken Gateway di layar sambutan, tunggu jendela utama tampil, lalu tekan Enter di terminal.
 
    ```powershell

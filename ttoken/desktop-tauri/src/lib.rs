@@ -31,6 +31,11 @@ const CHANNEL_MODULE: &str = include_str!("../host/shell-channel.mjs");
 const BRIDGE: &str = include_str!("bridge.js");
 /// Environment variable naming the timeline file; measurement scripts set it per run.
 const TIMELINE_ENV: &str = "TTOKEN_DESKTOP_TIMELINE";
+/// Environment variable that makes the page report when its composer appears and accepts input (`1`); smoke tests
+/// set it. Measurement runs leave it unset so both shells are observed the same way.
+const MARK_COMPOSER_ENV: &str = "TTOKEN_DESKTOP_MARK_COMPOSER";
+/// Page events `desktop_mark` accepts.
+const PAGE_EVENTS: [&str; 2] = ["composer-shown", "composer-ready"];
 
 /// Shell state shared by the protocol handler, the commands, and the exit sequence.
 struct Shell {
@@ -83,7 +88,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_boot,
             desktop_boot_failed,
-            desktop_ws_ticket
+            desktop_ws_ticket,
+            desktop_mark
         ])
         .setup(move |app| setup(app, setup_timeline, payload_root))
         .build(tauri::generate_context!())
@@ -141,7 +147,10 @@ fn setup(
         stopped: AtomicBool::new(false),
     }));
 
-    let bridge = BRIDGE.replace("__TTOKEN_APP_ORIGIN__", &serde_json::to_string(protocol::ORIGIN)?);
+    let mark_composer = std::env::var_os(MARK_COMPOSER_ENV).is_some_and(|value| value == "1");
+    let bridge = BRIDGE
+        .replace("__TTOKEN_APP_ORIGIN__", &serde_json::to_string(protocol::ORIGIN)?)
+        .replace("__TTOKEN_MARK_COMPOSER__", if mark_composer { "true" } else { "false" });
     let page_timeline = Arc::clone(&timeline);
     WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::CustomProtocol(protocol::app_url()))
         .title("TTOken Code")
@@ -179,12 +188,6 @@ fn start_harness(
     write_if_changed(&channel_module, CHANNEL_MODULE)
         .map_err(|error| format!("cannot write {}: {error}", channel_module.display()))?;
     let profile = harness_home(app)?.join("profiles").join("desktop");
-    if !profile.join("package.json").is_file() {
-        return Err(format!(
-            "{} has no Desktop profile yet. Open the Electron build of TTOken Code once to create it.",
-            profile.display()
-        ));
-    }
     let host = Arc::new(HostHandle::spawn(
         HostLaunch {
             node: payload.node.clone(),
@@ -336,4 +339,15 @@ fn desktop_boot_failed(
 fn desktop_ws_ticket(webview: tauri::Webview, shell: tauri::State<'_, Arc<Shell>>) -> Result<String, String> {
     require_main_document(&webview)?;
     Ok(harness(&shell)?.tickets.issue())
+}
+
+#[tauri::command]
+fn desktop_mark(webview: tauri::Webview, shell: tauri::State<'_, Arc<Shell>>, event: String) -> Result<(), String> {
+    require_main_document(&webview)?;
+    let event = PAGE_EVENTS
+        .into_iter()
+        .find(|known| *known == event)
+        .ok_or_else(|| format!("unknown page event {event:?}"))?;
+    shell.timeline.mark(event, "");
+    Ok(())
 }

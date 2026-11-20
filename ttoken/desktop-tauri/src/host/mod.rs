@@ -27,6 +27,8 @@ const MAX_DIAGNOSTIC_CHARS: usize = 64 * 1024;
 /// `CREATE_NO_WINDOW`: Node is a console program and would otherwise open a console window.
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// First-launch profile creation; see `host/prepare-profile.mjs`.
+const PREPARE_PROFILE: &str = include_str!("../../host/prepare-profile.mjs");
 
 /// Everything needed to start one Host process.
 #[derive(Debug, Clone)]
@@ -161,12 +163,10 @@ async fn supervise(
     let listener = channel::Listener::bind().map_err(|error| format!("cannot open the Host channel: {error}"))?;
     let channel_module = Url::from_file_path(&launch.channel_module)
         .map_err(|()| format!("{} is not an absolute path", launch.channel_module.display()))?;
-    std::fs::create_dir_all(&launch.profile).map_err(|error| {
-        format!(
-            "cannot create the profile directory {}: {error}",
-            launch.profile.display()
-        )
-    })?;
+    if !launch.profile.join("package.json").is_file() {
+        prepare_profile(launch).await?;
+        timeline.mark("profile-created", &launch.profile.display().to_string());
+    }
     let log: SharedFile = Arc::new(Mutex::new(open_log(&launch.log)));
     let mut command = tokio::process::Command::new(&launch.node);
     command
@@ -289,6 +289,37 @@ async fn supervise(
         .kill()
         .await
         .map_err(|error| format!("cannot stop the Host: {error}"))
+}
+
+/// Create the Desktop profile with the payload's own profile code, as the Electron shell does on first launch.
+async fn prepare_profile(launch: &HostLaunch) -> Result<(), String> {
+    let mut command = tokio::process::Command::new(&launch.node);
+    command
+        .arg("--input-type=module")
+        .arg("--eval")
+        .arg(PREPARE_PROFILE)
+        .arg(&launch.profile)
+        .current_dir(&launch.project)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let output = command
+        .output()
+        .await
+        .map_err(|error| format!("cannot start {}: {error}", launch.node.display()))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "cannot create the Desktop profile in {} ({}): {}",
+            launch.profile.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
 }
 
 /// One validated message from the Host.

@@ -91,6 +91,23 @@
     }
   }
 
+  // Smoke tests ask the page to report when the composer appears, and when it first accepts input (which needs an
+  // open Workspace). Measurement runs leave this off, so both shells are observed by the same external probe.
+  if (__TTOKEN_MARK_COMPOSER__) {
+    const pending = new Map([
+      ['composer-shown', '[data-composer-input]'],
+      ['composer-ready', '[data-composer-input][contenteditable="true"]'],
+    ])
+    const poll = setInterval(() => {
+      for (const [event, selector] of pending) {
+        if (document.querySelector(selector) === null) continue
+        pending.delete(event)
+        invoke('desktop_mark', { event }).catch(() => {})
+      }
+      if (pending.size === 0) clearInterval(poll)
+    }, 100)
+  }
+
   // The Web entry assigns `__DSH_TRANSPORT__` after boot. Every assigned value keeps the ticket socket factory, so
   // the entry needs no change for this shell.
   const createWebSocket = url => new TicketedWebSocket(url)

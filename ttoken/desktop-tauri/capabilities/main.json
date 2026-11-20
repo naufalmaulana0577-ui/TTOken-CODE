@@ -2,6 +2,13 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "Shell commands for the Web client in the main window. No remote origins: the client is served by the shell itself.",
-  "windows": ["main"],
-  "permissions": ["allow-desktop-boot", "allow-desktop-boot-failed", "allow-desktop-ws-ticket"]
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-desktop-boot",
+    "allow-desktop-boot-failed",
+    "allow-desktop-ws-ticket",
+    "allow-desktop-mark"
+  ]
 }

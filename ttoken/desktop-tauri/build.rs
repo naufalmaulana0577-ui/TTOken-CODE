@@ -6,6 +6,7 @@ fn main() {
             "desktop_boot",
             "desktop_boot_failed",
             "desktop_ws_ticket",
+            "desktop_mark",
         ])),
     )
     .expect("tauri-build failed");

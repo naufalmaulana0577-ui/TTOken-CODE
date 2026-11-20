@@ -1,8 +1,9 @@
 //! Location of the Harness payload: the Host project with the Web client, and the bundled runtime.
 //!
-//! A payload root has the layout of the `resources` directory of a packaged Electron build: the project at
-//! `app.asar.unpacked/dsh` (or `dsh`) and the runtime at `runtime`. In Phase 0 the shell runs the payload of an
-//! installed Electron build, so both shells are measured with the same Host and Web client.
+//! A payload root holds the project as files at `dsh` and the runtime at `runtime`. A packaged Electron build keeps
+//! the project inside `app.asar`, which only Electron can read, so in Phase 0 `scripts/extract-payload.mjs` writes
+//! the project of an installed Electron build out as files and links its runtime. Both shells then run the same Host
+//! and Web client.
 
 use std::path::{Path, PathBuf};
 
@@ -39,10 +40,17 @@ impl Payload {
     ///
     /// Returns a message naming the first required file or directory that is missing.
     pub fn from_root(root: &Path) -> Result<Self, String> {
-        let project = [root.join("app.asar.unpacked").join("dsh"), root.join("dsh")]
-            .into_iter()
-            .find(|candidate| candidate.is_dir())
-            .ok_or_else(|| format!("{}: no dsh project directory", root.display()))?;
+        let project = root.join("dsh");
+        if !project.is_dir() {
+            if root.join("app.asar").is_file() {
+                return Err(format!(
+                    "{}: the dsh project is packed in app.asar, which plain Node cannot read; \
+                     write it out with scripts/extract-payload.mjs and pass that directory",
+                    root.display()
+                ));
+            }
+            return Err(format!("{}: no dsh project directory", root.display()));
+        }
         let runtime = root.join("runtime");
         let primary_runtime = runtime.join("primary-runtime");
         let node = primary_runtime
@@ -86,8 +94,7 @@ impl Payload {
 
 /// Find the payload: the explicit root when given, otherwise the first valid default location.
 ///
-/// Defaults, in order: `TTOKEN_DESKTOP_PAYLOAD`, the directory of this executable, then the `resources`
-/// directory of an installed TTOken Code Electron build.
+/// Defaults, in order: `TTOKEN_DESKTOP_PAYLOAD`, then the directory of this executable.
 ///
 /// # Errors
 ///
@@ -118,21 +125,6 @@ fn default_roots() -> Vec<PathBuf> {
     {
         roots.push(directory);
     }
-    #[cfg(windows)]
-    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        let programs = PathBuf::from(local).join("Programs");
-        for name in ["TTOken Code", "ttoken-code"] {
-            roots.push(programs.join(name).join("resources"));
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let bundle = Path::new("TTOken Code.app").join("Contents").join("Resources");
-        roots.push(Path::new("/Applications").join(&bundle));
-        if let Some(home) = std::env::home_dir() {
-            roots.push(home.join("Applications").join(&bundle));
-        }
-    }
     roots
 }
 
@@ -147,9 +139,19 @@ mod tests {
     }
 
     #[test]
-    fn resolves_an_electron_resources_layout() {
+    fn rejects_a_project_packed_in_asar() {
+        let root = std::env::temp_dir().join(format!("ttoken-payload-asar-{}", std::process::id()));
+        write(&root.join("app.asar"), "");
+        write(&root.join("app.asar.unpacked/dsh/node_modules/native/addon.node"), "");
+        let error = Payload::from_root(&root).expect_err("packed project");
+        assert!(error.contains("extract-payload.mjs"), "{error}");
+        std::fs::remove_dir_all(root).expect("remove test payload");
+    }
+
+    #[test]
+    fn resolves_an_extracted_payload() {
         let root = std::env::temp_dir().join(format!("ttoken-payload-{}", std::process::id()));
-        let project = root.join("app.asar.unpacked").join("dsh");
+        let project = root.join("dsh");
         let packages = project.join("node_modules").join("@deepseek-ai");
         let node = if cfg!(windows) { "node.exe" } else { "node" };
         write(

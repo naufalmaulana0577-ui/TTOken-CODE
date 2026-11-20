@@ -97,14 +97,25 @@ jobs:
           Write-Host "Payload: $resources"
           "TTOKEN_PAYLOAD=$resources" >> $env:GITHUB_ENV
           New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'tauri-smoke') | Out-Null
-      - name: Periksa addon native di Node biasa
+      # Electron membaca project dsh dari dalam app.asar; Node biasa tidak bisa, jadi project ditulis ulang sebagai file.
+      - name: Ekstrak payload untuk Node biasa
+        id: payload
         run: |
           $node = Join-Path $env:TTOKEN_PAYLOAD 'runtime/primary-runtime/dependencies/node/bin/node.exe'
-          & $node ttoken/desktop-tauri/scripts/addon-smoke.mjs $env:TTOKEN_PAYLOAD --json (Join-Path $env:RUNNER_TEMP 'tauri-smoke/addons.json')
+          $output = Join-Path $env:RUNNER_TEMP 'tauri-payload'
+          & $node ttoken/desktop-tauri/scripts/extract-payload.mjs $env:TTOKEN_PAYLOAD $output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "TTOKEN_NODE_PAYLOAD=$output" >> $env:GITHUB_ENV
+      - name: Periksa addon native di Node biasa
+        if: ${{ !cancelled() && steps.payload.outcome == 'success' }}
+        run: |
+          $node = Join-Path $env:TTOKEN_NODE_PAYLOAD 'runtime/primary-runtime/dependencies/node/bin/node.exe'
+          & $node ttoken/desktop-tauri/scripts/addon-smoke.mjs $env:TTOKEN_NODE_PAYLOAD --json (Join-Path $env:RUNNER_TEMP 'tauri-smoke/addons.json')
           exit $LASTEXITCODE
       - name: Buka prototipe sampai composer tampil
+        if: ${{ !cancelled() && steps.payload.outcome == 'success' }}
         run: |
-          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop.exe -Payload $env:TTOKEN_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
+          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop.exe -Payload $env:TTOKEN_NODE_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
       - name: Salin log shell
         if: always()
         run: |
@@ -116,7 +127,8 @@ jobs:
           New-Item -ItemType Directory -Force $kit | Out-Null
           Copy-Item ttoken/desktop-tauri/target/release/ttoken-code-desktop.exe $kit
           Copy-Item -Recurse ttoken/desktop-tauri/measure (Join-Path $kit 'measure')
-          Copy-Item ttoken/desktop-tauri/scripts/addon-smoke.mjs $kit
+          New-Item -ItemType Directory -Force (Join-Path $kit 'scripts') | Out-Null
+          Copy-Item ttoken/desktop-tauri/scripts/extract-payload.mjs, ttoken/desktop-tauri/scripts/addon-smoke.mjs (Join-Path $kit 'scripts')
       - name: Unggah prototipe
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -181,13 +193,22 @@ jobs:
           echo "Payload: $PWD/$app/Contents/Resources"
           echo "TTOKEN_PAYLOAD=$PWD/$app/Contents/Resources" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/tauri-smoke"
-      - name: Periksa addon native di Node biasa
+      # Electron membaca project dsh dari dalam app.asar; Node biasa tidak bisa, jadi project ditulis ulang sebagai file.
+      - name: Ekstrak payload untuk Node biasa
+        id: payload
         run: |
-          "$TTOKEN_PAYLOAD/runtime/primary-runtime/dependencies/node/bin/node" ttoken/desktop-tauri/scripts/addon-smoke.mjs "$TTOKEN_PAYLOAD" --json "$RUNNER_TEMP/tauri-smoke/addons.json"
+          output="$RUNNER_TEMP/tauri-payload"
+          "$TTOKEN_PAYLOAD/runtime/primary-runtime/dependencies/node/bin/node" ttoken/desktop-tauri/scripts/extract-payload.mjs "$TTOKEN_PAYLOAD" "$output"
+          echo "TTOKEN_NODE_PAYLOAD=$output" >> "$GITHUB_ENV"
+      - name: Periksa addon native di Node biasa
+        if: ${{ !cancelled() && steps.payload.outcome == 'success' }}
+        run: |
+          "$TTOKEN_NODE_PAYLOAD/runtime/primary-runtime/dependencies/node/bin/node" ttoken/desktop-tauri/scripts/addon-smoke.mjs "$TTOKEN_NODE_PAYLOAD" --json "$RUNNER_TEMP/tauri-smoke/addons.json"
       - name: Buka prototipe di WKWebView sampai composer tampil
+        if: ${{ !cancelled() && steps.payload.outcome == 'success' }}
         shell: pwsh
         run: |
-          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop -Payload $env:TTOKEN_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
+          ./ttoken/desktop-tauri/scripts/smoke.ps1 -Shell ttoken/desktop-tauri/target/release/ttoken-code-desktop -Payload $env:TTOKEN_NODE_PAYLOAD -OutputDirectory (Join-Path $env:RUNNER_TEMP 'tauri-smoke')
       - name: Salin log shell
         if: always()
         run: |

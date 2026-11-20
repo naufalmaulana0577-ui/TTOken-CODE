@@ -6,7 +6,8 @@ Ukur RAM dan waktu TTOken Code Desktop, build Electron atau prototipe Tauri, unt
 .DESCRIPTION
 Skrip ini menjalankan skenario S1 sampai S3 dari PRD (ttoken/docs/PRD-TAURI.md, bagian "Cara mengukur") di Windows 11,
 dengan home Harness terpisah supaya data harian tidak tersentuh. Kedua build memakai Host dan Web client yang sama:
-prototipe Tauri menjalankan payload dari instalasi Electron.
+prototipe Tauri menjalankan payload instalasi Electron. Electron menyimpan project dsh di dalam app.asar, yang tidak
+bisa dibaca Node biasa, jadi skrip ini mengekstraknya dulu ke folder kerja (scripts/extract-payload.mjs).
 
 Tiap peluncuran mencatat:
 - (a) waktu dari start proses sampai jendela utama tampil;
@@ -97,13 +98,21 @@ function Resolve-TauriExe {
 }
 
 $electron = Resolve-ElectronExe
-$payload = Join-Path (Split-Path $electron) 'resources'
-$project = Join-Path $payload 'app.asar.unpacked\dsh'
-$payloadNode = Join-Path $payload 'runtime\primary-runtime\dependencies\node\bin\node.exe'
-foreach ($required in $project, $payloadNode) {
-    if (-not (Test-Path $required)) { throw "payload Electron tidak lengkap: $required tidak ada" }
-}
+$electronResources = Join-Path (Split-Path $electron) 'resources'
+$payloadNode = Join-Path $electronResources 'runtime\primary-runtime\dependencies\node\bin\node.exe'
+if (-not (Test-Path $payloadNode)) { throw "payload Electron tidak lengkap: $payloadNode tidak ada" }
+# Payload untuk Node biasa: project dsh hasil ekstrak app.asar, dan runtime yang ditautkan ke instalasi Electron.
+$payload = Join-Path $WorkRoot 'payload'
+$project = Join-Path $payload 'dsh'
+$extractor = Join-Path $PSScriptRoot '..' 'scripts' 'extract-payload.mjs'
 $tauri = if ($Setup -or $Build -eq 'Tauri') { Resolve-TauriExe } else { $null }
+
+function Update-Payload {
+    <# Ekstrak project dsh dari app.asar instalasi Electron; tidak melakukan apa-apa bila app.asar belum berubah. #>
+    if (-not (Test-Path $extractor)) { throw "extract-payload.mjs tidak ditemukan: $extractor" }
+    & $payloadNode $extractor $electronResources $payload
+    if ($LASTEXITCODE -ne 0) { throw "ekstrak payload gagal dengan kode $LASTEXITCODE" }
+}
 
 function Get-FreePort {
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -171,8 +180,9 @@ function Stop-Desktop {
 }
 
 function Stop-Strays {
-    <# Hentikan sisa proses dari run sebelumnya: shell kedua build dan Node dari payload. #>
-    $paths = @($electron, $tauri, $payloadNode) | Where-Object { $_ }
+    <# Hentikan sisa proses dari run sebelumnya: shell kedua build dan Node dari payload, lewat path asli atau tautannya. #>
+    $paths = @($electron, $tauri, $payloadNode, (Join-Path $payload 'runtime\primary-runtime\dependencies\node\bin\node.exe')) |
+        Where-Object { $_ }
     Get-Process | Where-Object { $_.Path -and $paths -contains $_.Path } | ForEach-Object {
         Write-Warning "menghentikan sisa proses $($_.ProcessName) ($($_.Id))"
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
@@ -314,6 +324,7 @@ function Invoke-WarmUp {
 if ($Setup) {
     Stop-Strays
     Write-Host "Folder kerja: $WorkRoot"
+    Update-Payload
     Initialize-Fixture
     Write-Host ''
     Write-Host 'Langkah manual: TTOken Code (Electron) terbuka dengan home ukur. Isi API key TTOken Gateway di layar sambutan,'
@@ -328,6 +339,9 @@ if ($Setup) {
 
 New-Item -ItemType Directory -Force -Path $resultsDirectory | Out-Null
 if (-not (Test-Path (Join-Path $harnessHome 'sessions'))) { throw "home ukur belum disiapkan; jalankan dulu: Measure-Desktop.ps1 -Setup" }
+# Start dingin tidak boleh membaca file app sebelum peluncuran, jadi payload hasil ekstrak terakhir dipakai apa adanya.
+if (-not $Cold) { Update-Payload }
+elseif (-not (Test-Path (Join-Path $payload 'payload.json'))) { throw 'payload belum diekstrak; jalankan dulu: Measure-Desktop.ps1 -Setup' }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $label = '{0}{1}{2}' -f $Build.ToLower(), $(if ($CompileCache) { '-cache' } else { '' }), $(if ($Cold) { '-cold' } else { '' })
 $runDirectory = Join-Path $resultsDirectory "$label-$stamp"
@@ -342,21 +356,32 @@ $result = [ordered]@{
     started  = (Get-Date).ToString('o')
     settings = [ordered]@{ runs = $(if ($Cold) { 1 } else { $Runs }); idleSeconds = $IdleSeconds; scenarios = $(if ($Cold) { @('Cold') } else { $Scenario }); compileCache = $CompileCache.IsPresent; cold = $Cold.IsPresent }
     machine  = [ordered]@{ os = "$($os.Caption) $($os.Version)"; cpu = $cpu.Name; memoryBytes = [long] $os.TotalVisibleMemorySize * 1024 }
-    versions = [ordered]@{
-        electron = (Get-Item $electron).VersionInfo.ProductVersion
-        tauri    = $(if ($tauri) { (Get-Item $tauri).VersionInfo.ProductVersion } else { $null })
-        host     = (Get-Content -Raw (Join-Path $project 'node_modules\@deepseek-ai\dsh-desktop-host\package.json') | ConvertFrom-Json).version
-    }
+    # Diisi setelah peluncuran, supaya start dingin tidak didahului pembacaan file app.
+    versions = $null
     records  = @()
+}
+
+function Assert-CompileCache {
+    <#
+    Node menulis compile cache saat Host keluar normal. Folder kosong berarti peluncuran berikutnya diukur tanpa cache,
+    jadi pengukuran -CompileCache berhenti di sini daripada melaporkan "tidak ada perbedaan".
+    #>
+    $entries = @(Get-ChildItem -Path $compileCacheDirectory -Recurse -File -ErrorAction SilentlyContinue)
+    if ($entries.Count -eq 0) { throw "compile cache Node kosong ($compileCacheDirectory): Host tidak keluar normal setelah pemanasan." }
+    $megabytes = ($entries | Measure-Object -Property Length -Sum).Sum / 1MB
+    Write-Host ('Compile cache Node: {0} entri, {1:N1} MB' -f $entries.Count, $megabytes)
+    $result.settings['compileCacheEntries'] = $entries.Count
 }
 
 if ($Cold) {
     Write-Host 'Start dingin: satu peluncuran tanpa pemanasan.'
+    if ($CompileCache) { Assert-CompileCache }
     $result.records += Invoke-Launch -ScenarioName Cold -Run 1 -RunDirectory $runDirectory
 }
 else {
     Write-Host 'Pemanasan (tidak dicatat).'
     Invoke-WarmUp
+    if ($CompileCache) { Assert-CompileCache }
     foreach ($run in 1..$Runs) {
         foreach ($name in $Scenario) {
             Write-Host ("{0} {1} run {2}/{3}" -f $Build, $name, $run, $Runs)
@@ -366,6 +391,11 @@ else {
     }
 }
 
+$result.versions = [ordered]@{
+    electron = (Get-Item $electron).VersionInfo.ProductVersion
+    tauri    = $(if ($tauri) { (Get-Item $tauri).VersionInfo.ProductVersion } else { $null })
+    host     = (Get-Content -Raw (Join-Path $project 'node_modules\@deepseek-ai\dsh-desktop-host\package.json') | ConvertFrom-Json).version
+}
 $jsonPath = Join-Path $runDirectory 'result.json'
 $result | ConvertTo-Json -Depth 12 | Set-Content -Path $jsonPath -Encoding utf8
 

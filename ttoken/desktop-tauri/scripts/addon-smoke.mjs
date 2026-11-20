@@ -3,10 +3,11 @@
  *
  * Usage: <bundled node> addon-smoke.mjs <payload root> [--json <file>]
  *
- * The payload root has the layout of an Electron build's `resources` directory (`app.asar.unpacked/dsh` or `dsh`,
- * and `runtime`). Every addon is resolved from the payload project, so the check covers exactly what ships. Each
- * check reports `ok`, `failed`, or `unsupported` (the addon has no build for this platform, by design), with its
- * duration and a short detail. The exit code is 1 when any check failed.
+ * The payload root holds the project as files at `dsh` and the runtime at `runtime`: the output of
+ * extract-payload.mjs for a packaged Electron build, whose `app.asar` plain Node cannot read. Every addon is resolved
+ * from the payload project, so the check covers exactly what ships. Each check reports `ok`, `failed`, or
+ * `unsupported` (the addon has no build for this platform, by design), with its duration and a short detail. The exit
+ * code is 1 when any check failed.
  */
 
 import { execFile } from 'node:child_process'
@@ -27,9 +28,11 @@ if (root === undefined) {
 }
 const jsonIndex = options.indexOf('--json')
 const jsonPath = jsonIndex === -1 ? undefined : options[jsonIndex + 1]
-const project = [join(root, 'app.asar.unpacked', 'dsh'), join(root, 'dsh')].find(path => existsSync(path))
-if (project === undefined) {
-  console.error(`addon-smoke: ${root} has no dsh project directory`)
+const project = join(root, 'dsh')
+if (!existsSync(project)) {
+  console.error(existsSync(join(root, 'app.asar'))
+    ? `addon-smoke: ${root} keeps the dsh project in app.asar; write it out with extract-payload.mjs first`
+    : `addon-smoke: ${root} has no dsh project directory`)
   process.exit(2)
 }
 const require = createRequire(join(project, 'package.json'))
@@ -129,8 +132,10 @@ const checks = {
     if (!existsSync(launcher)) throw new Error(`${launcher} is missing`)
     const probe = 'console.log(JSON.stringify({ version: process.version, electron: process.versions.electron ?? null, execPath: process.execPath }))'
     const env = { ...process.env, DSH_DESKTOP_NODE_EXECUTABLE: process.execPath }
+    // cmd /s drops the first and last quote of the command, so the whole command gets one more pair; the probe
+    // itself has no quotes.
     const { stdout } = process.platform === 'win32'
-      ? await run(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${launcher}" -e "${probe.replaceAll('"', '\\"')}"`], { env, windowsVerbatimArguments: true })
+      ? await run(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `""${launcher}" -e "${probe}""`], { env, windowsVerbatimArguments: true })
       : await run(launcher, ['-e', probe], { env })
     const reported = JSON.parse(stdout.trim().split('\n').at(-1))
     if (reported.electron !== null) throw new Error(`the launcher started Electron ${reported.electron}`)

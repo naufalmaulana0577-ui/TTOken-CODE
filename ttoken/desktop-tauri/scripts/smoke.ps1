@@ -19,7 +19,8 @@ Di macOS dan Linux pohon proses dihentikan paksa setelah screenshot.
 Path executable prototipe.
 
 .PARAMETER Payload
-Folder resources build Electron (berisi app.asar.unpacked/dsh atau dsh, dan runtime).
+Payload untuk Node biasa (berisi dsh dan runtime): hasil scripts/extract-payload.mjs dari folder resources build
+Electron, karena Node biasa tidak bisa membaca app.asar.
 
 .PARAMETER OutputDirectory
 Folder keluaran; dibuat bila belum ada.

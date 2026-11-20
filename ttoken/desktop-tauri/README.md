@@ -15,7 +15,7 @@ Shell Rust (Tauri 2.12) yang menggantikan proses induk Electron. Host TypeScript
 | Izin (`capabilities/main.json`) | Command shell hanya untuk jendela `main`, tanpa `remote` | D6 |
 | Timeline (`src/timeline.rs`) | Kejadian start bertanda waktu, satu JSON per baris, untuk pengukuran | |
 
-Di Fase 0 shell menjalankan payload dari instalasi Electron (folder `resources`), jadi kedua build diukur dengan Host dan Web client yang sama. Payload dicari dari `--payload <folder>`, lalu `TTOKEN_DESKTOP_PAYLOAD`, folder executable, dan instalasi TTOken Code di `%LOCALAPPDATA%\Programs` atau `/Applications`.
+Di Fase 0 shell menjalankan payload build Electron, jadi kedua build diukur dengan Host dan Web client yang sama. Build Electron menyimpan project `dsh` di dalam `app.asar` dan hanya mengeluarkan kode native ke `app.asar.unpacked`. Electron membaca arsip itu dengan sendirinya, Node biasa tidak, jadi `scripts/extract-payload.mjs` menulis project itu sebagai berkas biasa ke folder payload (`dsh`, dan `runtime` yang ditautkan ke runtime build Electron). Payload dicari dari `--payload <folder>`, lalu `TTOKEN_DESKTOP_PAYLOAD`, lalu folder executable.
 
 ## Isi folder
 
@@ -24,6 +24,7 @@ Di Fase 0 shell menjalankan payload dari instalasi Electron (folder `resources`)
 | `src/` | Shell Rust |
 | `host/` | Modul yang dijalankan Node bawaan: kanal socket dan pembuat profil |
 | `measure/` | Skrip ukur Fase 0 untuk Windows 11 (lihat [`measure/README.md`](measure/README.md)) |
+| `scripts/extract-payload.mjs` | Tulis project `dsh` dari `app.asar` build Electron sebagai berkas biasa, untuk Node biasa |
 | `scripts/addon-smoke.mjs` | Cek addon native di Node biasa |
 | `scripts/smoke.ps1` | Buka prototipe sampai composer tampil, screenshot, lalu tutup (dipakai CI) |
 | `scripts/check-parity.mjs` | Gagal bila upstream menambah kanal `DESKTOP_IPC` atau global preload yang belum ada di `PARITY.md` |
@@ -37,10 +38,11 @@ Butuh Rust stable. Windows juga butuh Visual C++ Build Tools; WebView2 sudah ada
 ```sh
 cd ttoken/desktop-tauri
 cargo build --release
-./target/release/ttoken-code-desktop --payload "<folder resources build Electron>"
+"<folder resources>/runtime/primary-runtime/dependencies/node/bin/node" scripts/extract-payload.mjs "<folder resources build Electron>" ~/ttoken-payload
+./target/release/ttoken-code-desktop --payload ~/ttoken-payload
 ```
 
-Workflow `.github/workflows/ttoken-desktop-tauri.yml` membangun prototipe untuk Windows x64 dan macOS Apple silicon pada setiap push ke `ttoken/desktop-tauri`, memeriksa addon native, dan membuka prototipe dengan payload dari commit yang sama sampai composer tampil. Artifact `ttoken-code-tauri-prototype-windows-x64` berisi exe dan skrip ukur.
+Workflow `.github/workflows/ttoken-desktop-tauri.yml` membangun prototipe untuk Windows x64 dan macOS Apple silicon pada setiap push ke `ttoken/desktop-tauri`, mengekstrak payload build Electron dari commit yang sama, memeriksa addon native, dan membuka prototipe sampai composer tampil. Artifact `ttoken-code-tauri-prototype-windows-x64` berisi exe, skrip ukur, dan `scripts/extract-payload.mjs`.
 
 Variabel lingkungan:
 

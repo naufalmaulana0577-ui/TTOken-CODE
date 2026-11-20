@@ -158,10 +158,12 @@ function Get-TreeMemory {
     $processes = @(foreach ($process in $tree) {
             if (-not $counters.ContainsKey($process.Id)) { continue }
             [pscustomobject]@{
-                id    = $process.Id
-                name  = $process.Name
-                kind  = Get-ProcessKind -Process $process -RootId $RootId
-                bytes = $counters[$process.Id]
+                id      = $process.Id
+                name    = $process.Name
+                kind    = Get-ProcessKind -Process $process -RootId $RootId
+                bytes   = $counters[$process.Id]
+                # Start time in Unix milliseconds, for the Host start offset.
+                started = [DateTimeOffset]::new($process.Started).ToUnixTimeMilliseconds()
             }
         })
     [pscustomobject]@{
@@ -194,8 +196,14 @@ function Save-Screenshot {
         }
         finally { $bitmap.Dispose() }
     }
-    elseif ($IsMacOS) { & screencapture -x $Path }
-    else { & import -window root $Path }
+    elseif ($IsMacOS) {
+        & screencapture -x $Path
+        if ($LASTEXITCODE -ne 0) { throw "screencapture exited with code $LASTEXITCODE" }
+    }
+    else {
+        & import -window root $Path
+        if ($LASTEXITCODE -ne 0) { throw "import exited with code $LASTEXITCODE" }
+    }
 }
 
 function Test-StillRunning {
@@ -207,7 +215,14 @@ function Test-StillRunning {
     param([Parameter(Mandatory)] [object] $Process)
     $running = Get-Process -Id $Process.Id -ErrorAction SilentlyContinue
     if ($null -eq $running) { return $false }
-    try { $started = $running.StartTime } catch { return $true }
+    try { $started = $running.StartTime }
+    catch {
+        # A recycled id can belong to a process this user cannot open, such as a service; CIM reads its start time
+        # without opening it. A start time that cannot be read at all means "not the captured process".
+        if (-not $IsWindows) { return $false }
+        $started = (Get-CimInstance Win32_Process -Filter "ProcessId = $($Process.Id)" -Property CreationDate -ErrorAction SilentlyContinue).CreationDate
+        if ($null -eq $started) { return $false }
+    }
     # ps reports start times to the second; CIM to the microsecond.
     [Math]::Abs(($started - $Process.Started).TotalSeconds) -lt 2
 }

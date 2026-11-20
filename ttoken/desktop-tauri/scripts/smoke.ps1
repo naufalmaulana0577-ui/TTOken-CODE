@@ -100,12 +100,15 @@ finally {
     if ($tree.Count -eq 0 -and -not $shellProcess.HasExited) { $tree = @(Get-ProcessTree -RootId $shellProcess.Id) }
 
     if (-not $shellProcess.HasExited) { $shellProcess.Refresh() }
-    if ($IsWindows -and -not $shellProcess.HasExited -and $shellProcess.CloseMainWindow()) {
+    # WM_CLOSE reaches the shell only through its main window, which stays hidden until the page boots; a start that
+    # failed earlier is stopped instead.
+    $windowShown = $IsWindows -and -not $shellProcess.HasExited -and (Test-ProcessWindow -ProcessId $shellProcess.Id)
+    if ($windowShown -and $shellProcess.CloseMainWindow()) {
         if ($shellProcess.WaitForExit(30000)) { $summary.exit = 'graceful' } else { $summary.exit = 'timeout' }
     }
     elseif (-not $shellProcess.HasExited) {
         Stop-ProcessTree -Tree $tree
-        $summary.exit = 'killed'
+        $summary.exit = if ($IsWindows -and -not $windowShown) { 'killed-before-window' } else { 'killed' }
     }
     else {
         $summary.exit = "exited-early ($($shellProcess.ExitCode))"
@@ -126,3 +129,5 @@ $summary | ConvertTo-Json -Depth 5 | Write-Host
 if ($null -ne $summary.failure) { throw $summary.failure }
 if ($IsWindows -and $summary.exit -ne 'graceful') { throw "prototipe tidak keluar rapi lewat WM_CLOSE ($($summary.exit))" }
 if ($IsWindows -and $summary.remaining.Count -gt 0) { throw "proses milik app tersisa: $($summary.remaining -join ', ')" }
+# Kode keluar perintah native terakhir (ps, screencapture) tidak boleh menentukan hasil langkah CI.
+exit 0

@@ -78,6 +78,24 @@
       return row === null ? null : center(row)
     },
 
+    // Whether the Session is the one open in the main view; clicking its row then switches nothing.
+    sessionSelected: (sessionId) => {
+      const row = document.querySelector(`[role="treeitem"][data-row-key="session:${CSS.escape(sessionId)}"]`)
+      return row !== null && row.getAttribute('aria-selected') === 'true'
+    },
+
+    // Forget every saved right-sidebar layout (ui-sidebar-right persistence.ts), so the next launch opens each
+    // Session with the default sidebar. The layouts are written when they change, not when the page closes.
+    clearSidebarLayouts: () => {
+      const keys = []
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index)
+        if (key !== null && key.startsWith('dsh.sidebar-right.v1.')) keys.push(key)
+      }
+      for (const key of keys) localStorage.removeItem(key)
+      return keys.length
+    },
+
     // The confirming (last) button of an open dialog, such as the Preview Notice, for setup runs.
     dialogButton: () => {
       const dialog = document.querySelector('[role="dialog"], dialog[open]')

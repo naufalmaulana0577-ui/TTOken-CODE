@@ -60,9 +60,12 @@ function Open-FixtureSession {
         [int] $TimeoutSeconds = 90
     )
     $spec = $script:Fixture[$Key]
+    $id = ConvertTo-Json -Compress $spec.Id
+    # A Session that is already open switches nothing: its last answer is on screen, so nothing is timed.
+    if (Invoke-CdpScript -Session $Session -Expression "window.__ttokenMeasure.sessionSelected($id)") { return $null }
     $marker = ConvertTo-Json -Compress $spec.LastAnswer
     Invoke-CdpScript -Session $Session -Expression "window.__ttokenMeasure.prepareSwitch($marker, $($TimeoutSeconds * 1000))" | Out-Null
-    $point = Invoke-CdpScript -Session $Session -Expression "window.__ttokenMeasure.sessionRow($(ConvertTo-Json -Compress $spec.Id))"
+    $point = Invoke-CdpScript -Session $Session -Expression "window.__ttokenMeasure.sessionRow($id)"
     if ($null -eq $point) { throw "Session $($spec.Id) is not in the sidebar; run Measure-Desktop.ps1 -Setup" }
     Invoke-CdpClick -Session $Session -X $point.x -Y $point.y
     [math]::Round([double] (Invoke-CdpScript -Session $Session -Expression 'window.__ttokenMeasure.awaitSwitch()' -AwaitPromise -TimeoutSeconds ($TimeoutSeconds + 10)), 1)
@@ -83,21 +86,53 @@ function Invoke-ScenarioS2 {
 function Invoke-ScenarioS3 {
     <#
     .SYNOPSIS
-    S3: open the Device panel and the Issues view, return to Chat, then switch B, C, A, B, C, A and time each switch.
+    S3: open the Device panel in Sessions A, B, and C (the right sidebar belongs to each Session), open the Issues view,
+    return to Chat, then switch B, C, A, B, C, A and time each switch, so every switch lands on a Session with the
+    Device panel open.
     #>
     param([Parameter(Mandatory)] [object] $Session)
-    Invoke-RailButton -Session $Session -Name device
-    Start-Sleep -Seconds 2
-    $null = Open-FixtureSession -Session $Session -Key A
+    foreach ($key in 'A', 'B', 'C') {
+        $null = Open-FixtureSession -Session $Session -Key $key
+        Invoke-RailButton -Session $Session -Name device
+        Start-Sleep -Seconds 2
+    }
     Invoke-RailButton -Session $Session -Name issues
     Start-Sleep -Seconds 3
     Invoke-RailButton -Session $Session -Name home
     Start-Sleep -Seconds 1
     $switches = foreach ($key in 'B', 'C', 'A', 'B', 'C', 'A') {
-        Open-FixtureSession -Session $Session -Key $key
+        $elapsed = Open-FixtureSession -Session $Session -Key $key
+        if ($null -eq $elapsed) { throw "Session $key was already open, so the S3 switch order is broken" }
+        $elapsed
         Start-Sleep -Milliseconds 500
     }
     [ordered]@{ switchMs = @($switches) }
 }
 
-Export-ModuleMember -Function Install-PageHelpers, Wait-Composer, Invoke-RailButton, Open-FixtureSession, Invoke-ScenarioS2, Invoke-ScenarioS3
+function Get-OpenFixture {
+    <# .SYNOPSIS The key of the fixture Session open in the main view (Long, A, B, C), or 'other'. #>
+    param([Parameter(Mandatory)] [object] $Session)
+    foreach ($key in 'A', 'B', 'C', 'Long') {
+        $id = ConvertTo-Json -Compress $script:Fixture[$key].Id
+        if (Invoke-CdpScript -Session $Session -Expression "window.__ttokenMeasure.sessionSelected($id)") { return $key }
+    }
+    'other'
+}
+
+function Reset-LaunchState {
+    <#
+    .SYNOPSIS
+    Leave the page as every launch should find it: Session A open and no saved right-sidebar layouts.
+
+    .DESCRIPTION
+    The Web client restores the open Session (dsh.sessions.current) and each Session's right sidebar at start, so
+    without this a launch would start from wherever the previous scenario ended: S3 launches would restore the long
+    Session, and Device panels would stay open in later runs.
+    #>
+    param([Parameter(Mandatory)] [object] $Session)
+    $null = Open-FixtureSession -Session $Session -Key A
+    $null = Invoke-CdpScript -Session $Session -Expression 'window.__ttokenMeasure.clearSidebarLayouts()'
+}
+
+Export-ModuleMember -Function Install-PageHelpers, Wait-Composer, Invoke-RailButton, Open-FixtureSession, Invoke-ScenarioS2,
+Invoke-ScenarioS3, Get-OpenFixture, Reset-LaunchState

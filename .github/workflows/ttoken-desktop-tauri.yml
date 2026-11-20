@@ -70,6 +70,8 @@ jobs:
           cache: pnpm
       - name: Periksa identitas TTOken Code
         run: node ttoken/apply-brand.mjs --check
+      - name: Periksa PARITY.md terhadap shell Electron
+        run: node ttoken/desktop-tauri/scripts/check-parity.mjs
       - name: Pasang dependensi
         run: pnpm install --frozen-lockfile
       - name: Pulihkan cache packaging

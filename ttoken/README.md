@@ -13,6 +13,8 @@ Folder ini berisi semua yang membedakan TTOken Code dari upstream DeepSeek Harne
 | `installer/`, `renderer/`, `web/` | Gambar merek installer, merek layar sambutan, dan favicon |
 | `client/` | Palet, wordmark, beranda, sidebar, composer, mode, ikon, dan mask indikator berjalan untuk antarmuka di dalam jendela |
 | `NOTICE.md` | Atribusi ke DeepSeek Harness |
+| `desktop-tauri/` | Shell Rust (Tauri 2) pengganti proses induk Electron, masih prototipe Fase 0; lihat `desktop-tauri/README.md` |
+| `docs/` | PRD milik TTOken, misalnya `PRD-TAURI.md` untuk pindah ke Tauri |
 
 ## Yang diubah oleh `apply-brand.mjs`
 

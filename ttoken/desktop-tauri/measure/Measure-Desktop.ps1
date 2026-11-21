@@ -13,7 +13,8 @@ Node cannot read, so the script first extracts it to its working folder (scripts
 The builds are measured interleaved in one call: every run and scenario launches each selected build, in a rotating
 order, so heat, power mode, and background work affect all builds alike. Every launch starts from the same state:
 Session A open and the default right sidebar, which the end of the previous launch restores; when that fails, an
-unrecorded launch restores it. Windows is kept awake while the script runs.
+unrecorded launch restores it. Windows is kept awake while the script runs; when the power API refuses, the script
+warns at the start and records it in the results.
 
 Each launch records:
 - (a) the time from process start until the main window shows;
@@ -488,17 +489,18 @@ function Assert-CompileCache {
 
 # Ninety minutes without input would let Windows turn the display off and sleep: a launch in flight would time out
 # and the session would lock. While this script runs, Windows keeps the system and the display on; when that cannot
-# be arranged, the measurement goes on with a warning.
+# be arranged, the script warns, goes on, and records it in the results.
 $keptAwake = $false
+$awakeProblem = 'SetThreadExecutionState returned 0'
 try {
     Add-Type -Namespace TTokenMeasure -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
     # ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED. The u suffix keeps the flags unsigned: a plain
-    # 0x80000003 is a negative Int32, which the uint parameter rejects.
-    $null = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000003u)
-    $keptAwake = $true
+    # 0x80000003 is a negative Int32, which the uint parameter rejects. The call returns 0 when it fails.
+    $keptAwake = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000003u) -ne 0
 }
-catch {
-    Write-Warning "Windows tidak bisa ditahan agar tetap menyala ($($_.Exception.Message)); atur tidur dan layar mati ke Never selama pengukuran."
+catch { $awakeProblem = $_.Exception.Message }
+if (-not $keptAwake) {
+    Write-Warning "Windows tidak bisa ditahan agar tetap menyala ($awakeProblem); atur tidur dan layar mati ke Never sebelum melanjutkan."
 }
 try {
     Assert-NoUserInstance
@@ -540,6 +542,7 @@ try {
             settings = [ordered]@{
                 runs = $(if ($Cold) { 1 } else { $Runs }); idleSeconds = $IdleSeconds; scenarios = $(if ($Cold) { @('Cold') } else { $Scenario })
                 compileCache = $arm.CompileCache; cold = $Cold.IsPresent; interleavedWith = @($arms | ForEach-Object Name); stamp = $stamp
+                keptAwake = $keptAwake
             }
             machine  = $machine
             # Filled in after the launches, so a cold start is not preceded by reading the app's files.
@@ -599,7 +602,7 @@ try {
             tauri    = $(if ($tauri) { (Get-Item $tauri).VersionInfo.ProductVersion } else { $null })
             host     = (Get-Content -Raw (Join-Path $project 'node_modules\@deepseek-ai\dsh-desktop-host\package.json') | ConvertFrom-Json).version
         }
-        $lines = @("# Pengukuran $stamp", '', "Mesin: $($machine.os), $($machine.cpu); daya: $($machine.power.line), $($machine.power.scheme)", '')
+        $lines = @("# Pengukuran $stamp", '', "Mesin: $($machine.os), $($machine.cpu); daya: $($machine.power.line), $($machine.power.scheme); Windows ditahan menyala: $(if ($keptAwake) { 'ya' } else { 'tidak' })", '')
         if ($null -ne $aborted) { $lines += "Pengukuran berhenti sebelum selesai: $aborted", '' }
         $paths = @()
         foreach ($arm in $arms) {

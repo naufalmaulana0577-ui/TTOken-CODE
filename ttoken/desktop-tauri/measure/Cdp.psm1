@@ -91,6 +91,8 @@ function Receive-CdpMessage {
                 $segment = [ArraySegment[byte]]::new($buffer)
                 $result = $Session.Socket.ReceiveAsync($segment, $cancel.Token).GetAwaiter().GetResult()
             }
+            # The cancelled receive also aborts the connection.
+            catch [System.OperationCanceledException] { throw 'DevTools reply timed out' }
             finally { $cancel.Dispose() }
             if ($result.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Close) { throw 'DevTools connection closed' }
             $stream.Write($buffer, 0, $result.Count)

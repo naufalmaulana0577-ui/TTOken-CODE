@@ -32,14 +32,19 @@ function Install-PageHelpers {
     #>
     param([Parameter(Mandatory)] [object] $Session, [int] $TimeoutSeconds = 60)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $reason = 'the page stayed at about:blank'
     while ($true) {
+        # An evaluation the page holds while its document loads counts against the same deadline.
+        $remaining = [int] [Math]::Max(1, [Math]::Ceiling(($deadline - (Get-Date)).TotalSeconds))
         try {
-            if (Invoke-CdpScript -Session $Session -Expression $script:PageHelpers) { return }
+            if (Invoke-CdpScript -Session $Session -Expression $script:PageHelpers -TimeoutSeconds $remaining) { return }
+            $reason = 'the page stayed at about:blank'
         }
         catch {
-            if ($Session.Socket.State -ne [System.Net.WebSockets.WebSocketState]::Open) { throw }
             $reason = $_.Exception.Message
+            # A reply that timed out or a page that went away closes the connection; nothing more can be tried on it.
+            if ($Session.Socket.State -ne [System.Net.WebSockets.WebSocketState]::Open) {
+                throw "the page helpers could not be installed: $reason"
+            }
         }
         if ((Get-Date) -gt $deadline) { throw "the page helpers could not be installed within $TimeoutSeconds seconds: $reason" }
         Start-Sleep -Milliseconds 20

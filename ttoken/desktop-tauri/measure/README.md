@@ -35,7 +35,7 @@ Unduh dua artifact dari run CI untuk commit yang sama di branch `ttoken/desktop-
    pwsh -File measure/Measure-Desktop.ps1 -Setup
    ```
 
-3. Ukur ketiga build bergantian. Ini memakan sekitar 90 menit; charger tetap terpasang, laptop jangan dipakai, dan layarnya jangan ditutup. Selama skrip berjalan, Windows ditahan agar tidak tidur dan layar tidak mati, tetapi screen saver tidak ikut ditahan: bila laptop memakai screen saver yang mengunci layar, matikan dulu. Skrip berhenti bila compile cache Node masih kosong setelah pemanasan, dan bila laptop pindah ke baterai.
+3. Ukur ketiga build bergantian. Ini memakan sekitar 90 menit; charger tetap terpasang, laptop jangan dipakai, dan layarnya jangan ditutup. Selama skrip berjalan, Windows ditahan agar tidak tidur dan layar tidak mati. Bila itu gagal, skrip memberi peringatan di awal dan mencatatnya di hasil; atur tidur dan layar mati ke Never dulu. Screen saver tidak ikut ditahan: bila laptop memakai screen saver yang mengunci layar, matikan dulu. Skrip berhenti bila compile cache Node masih kosong setelah pemanasan, dan bila laptop pindah ke baterai.
 
    ```powershell
    pwsh -File measure/Measure-Desktop.ps1
@@ -49,7 +49,7 @@ Unduh dua artifact dari run CI untuk commit yang sama di branch `ttoken/desktop-
    pwsh -File measure/Compare-Desktop.ps1 -Electron <folder>\electron.json -Tauri <folder>\tauri-cache.json -OutputPath k1-cache.md
    ```
 
-   Yang pertama adalah K1 tanpa compile cache. Yang kedua keputusan D12: hanya (a) dan (b) yang dinilai, dan putusannya berbunyi apakah compile cache mempercepat keduanya. Yang ketiga K1 dengan compile cache. `Compare-Desktop.ps1` hanya memberi putusan untuk hasil dari satu pemanggilan bergantian dengan lima peluncuran per skenario, seperti di PRD; selain itu hasilnya belum bisa dinilai.
+   Yang pertama adalah K1 tanpa compile cache. Yang kedua keputusan D12: hanya (a) dan (b) yang dinilai, dan putusannya berbunyi apakah compile cache mempercepat keduanya. Yang ketiga K1 dengan compile cache, yang berlaku hanya bila D12 dipakai, yaitu bila `d12.md` berbunyi "compile cache mempercepat (a) dan (b)"; bila tidak, K1 diputuskan oleh `k1.md`. Urutan berkas di tiap perintah penting: `Compare-Desktop.ps1` menolak memberi putusan bila perannya tertukar. Putusan juga hanya diberikan untuk hasil dari satu pemanggilan bergantian yang diukur seperti di PRD: lima peluncuran per skenario, dan untuk K1 ketiga skenario dengan S1 idle 2 menit. Selain itu hasilnya belum bisa dinilai, dengan alasannya.
 
 5. Start dingin, di luar K1: reboot, login, lalu jalankan satu build. Skrip menunggu CPU dan disk tenang dulu (paling lama 15 menit), lalu meluncurkan app sekali. Ulangi dengan reboot untuk build lain; sebaiknya tiga kali per build, bergantian. Angkanya dibaca dari `summary.md`; `Compare-Desktop.ps1` menampilkan hasil start dingin tanpa putusan. Bila halaman prototipe belum boot dalam 30 detik, jendelanya tampil kosong karena batas waktu; start dingin itu tetap dicatat, dengan (a) diambil dari saat halaman boot di timeline shell, dan kolom "(a) dari saat boot" menandainya.
 

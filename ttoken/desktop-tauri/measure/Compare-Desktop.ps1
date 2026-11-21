@@ -21,15 +21,18 @@ bound in either result, is not judged either way: it reads "belum bisa dinilai",
 A lost run can hide a slow or a fast one and narrows the variation, and an upper bound widens it, so neither a pass
 nor a failure is safe to read from such a metric. A metric with complete data that fails still fails the gate.
 
-A verdict needs both results from one interleaved call of Measure-Desktop.ps1 (the same stamp), with five launches
-per scenario as the PRD asks ("Cara mengukur" point 5); otherwise it reads "belum bisa dinilai".
+A verdict needs both results from one interleaved call of Measure-Desktop.ps1 (the same stamp), measured as the PRD
+asks ("Cara mengukur"): five launches per scenario and, for K1, all of S1 to S3 with S1 idling two minutes. It also
+needs the results in their roles: for K1 an Electron result as -Electron and a Tauri result as -Tauri. Otherwise it
+reads "belum bisa dinilai" with the reason.
 
 The "Host mulai" row is not part of K1: it shows how much of the (a) and (b) differences comes from the startup
 order (Electron loads the page before it starts the Host), not from the shell.
 
-For D12, pass the Tauri result without the cache as -Electron and the TauriCache result as -Tauri. Two Tauri results
-are judged on (a) and (b) only, and the verdict says whether the compile cache makes them faster. Cold start results
-(-Cold) are shown without a verdict: they are recorded apart from K1.
+For D12, pass the Tauri result without the cache (tauri.json) as -Electron and the TauriCache result
+(tauri-cache.json) as -Tauri. Two Tauri results are judged on (a) and (b) only, and the verdict says whether the
+compile cache makes them faster. A K1 comparison with tauri-cache.json counts only when D12 is adopted. Cold start
+results (-Cold) are shown without a verdict: they are recorded apart from K1.
 
 .PARAMETER Electron
 First result file (the reference), for example electron.json from Measure-Desktop.ps1.
@@ -62,6 +65,12 @@ function Get-Median {
     ($sorted[$middle - 1] + $sorted[$middle]) / 2
 }
 
+function Get-Setting {
+    <# One value of a result's settings, or $null when the result does not record it (older results). #>
+    param([Parameter(Mandatory)] [object] $Result, [Parameter(Mandatory)] [string] $Name)
+    if ($null -ne $Result.settings -and $null -ne $Result.settings.PSObject.Properties[$Name]) { $Result.settings.$Name }
+}
+
 function Test-Counted {
     <# A launch counts when it finished and, where its start state is recorded, started from Session A. #>
     param([Parameter(Mandatory)] [object] $Record)
@@ -74,7 +83,7 @@ function Get-RunValues {
     param([Parameter(Mandatory)] [object] $Result, [Parameter(Mandatory)] [string] $Metric)
     $records = @($Result.records | Where-Object { Test-Counted -Record $_ })
     switch -Regex ($Metric) {
-        '^memory-(S[123])$' {
+        '^memory-(S[123]|Cold)$' {
             $scenario = $Matches[1]
             return @($records | Where-Object scenario -EQ $scenario | ForEach-Object { [double] $_.memory.medianTotal })
         }
@@ -98,21 +107,33 @@ function Get-ExpectedCount {
     $runs = [int] $Result.settings.runs
     $scenarios = @($Result.settings.scenarios)
     switch -Regex ($Metric) {
-        '^memory-(S[123])$' { if ($scenarios -contains $Matches[1]) { return $runs } return 0 }
+        '^memory-(S[123]|Cold)$' { if ($scenarios -contains $Matches[1]) { return $runs } return 0 }
         '^(window|composer)$' { return $runs * $scenarios.Count }
         '^switch$' { if ($scenarios -contains 'S3') { return $runs } return 0 }
     }
     0
 }
 
+# What the comparison decides. Cold starts are recorded apart from K1 (PRD, "Cara mengukur" point 5), so they get no
+# verdict. Two Tauri results, without and with Node's compile cache, decide D12, which asks only whether the start
+# times (a) and (b) are faster.
+$coldResults = @(@($electronResult, $tauriResult) | Where-Object { Get-Setting -Result $_ -Name 'cold' })
+$mode = if ($coldResults.Count -gt 0) { 'cold' }
+elseif ($electronResult.build -in 'Tauri', 'TauriCache' -and $tauriResult.build -in 'Tauri', 'TauriCache') { 'D12' }
+else { 'K1' }
+
 $metrics = @(
-    @{ Key = 'memory-S1'; Name = 'Memori total S1'; Unit = 'MB'; Scale = 1MB }
-    @{ Key = 'memory-S2'; Name = 'Memori total S2'; Unit = 'MB'; Scale = 1MB }
-    @{ Key = 'memory-S3'; Name = 'Memori total S3'; Unit = 'MB'; Scale = 1MB }
+    if ($mode -eq 'cold') { @{ Key = 'memory-Cold'; Name = 'Memori total start dingin'; Unit = 'MB'; Scale = 1MB } }
+    else {
+        @{ Key = 'memory-S1'; Name = 'Memori total S1'; Unit = 'MB'; Scale = 1MB }
+        @{ Key = 'memory-S2'; Name = 'Memori total S2'; Unit = 'MB'; Scale = 1MB }
+        @{ Key = 'memory-S3'; Name = 'Memori total S3'; Unit = 'MB'; Scale = 1MB }
+    }
     @{ Key = 'window'; Name = '(a) jendela tampil'; Unit = 'ms'; Scale = 1 }
     @{ Key = 'composer'; Name = '(b) composer bisa diketik'; Unit = 'ms'; Scale = 1 }
-    @{ Key = 'switch'; Name = '(c) ganti sesi'; Unit = 'ms'; Scale = 1 }
+    if ($mode -ne 'cold') { @{ Key = 'switch'; Name = '(c) ganti sesi'; Unit = 'ms'; Scale = 1 } }
 )
+$judged = switch ($mode) { 'cold' { @() } 'D12' { @('window', 'composer') } default { @($metrics | ForEach-Object { $_.Key }) } }
 
 $rows = foreach ($metric in $metrics) {
     $electronValues = @(Get-RunValues -Result $electronResult -Metric $metric.Key)
@@ -136,6 +157,14 @@ $rows = foreach ($metric in $metrics) {
     ) | Where-Object { $_.Have -lt $_.Want }
     foreach ($gap in $missing) { $note += "; $($gap.Label) hanya $($gap.Have) dari $($gap.Want) run yang bisa dipakai" }
     if (@($missing).Count -gt 0) { $undecided = $true }
+    if ($metric.Key -eq 'window') {
+        foreach ($result in $electronResult, $tauriResult) {
+            $fromBoot = @($result.records | Where-Object {
+                    (Test-Counted -Record $_) -and $null -ne $_.PSObject.Properties['windowFrom'] -and $_.windowFrom -eq 'boot-answered'
+                }).Count
+            if ($fromBoot -gt 0) { $note += "; $fromBoot run $($result.label) diambil dari saat halaman boot (jendela tampil karena batas 30 detik)" }
+        }
+    }
     if ($metric.Key -eq 'composer') {
         # A (b) observed late is only an upper bound; in either result it can widen the variation or the difference.
         $electronLate = @($electronResult.records | Where-Object { (Test-Counted -Record $_) -and $_.composerLate }).Count
@@ -159,16 +188,6 @@ $rows = foreach ($metric in $metrics) {
     }
 }
 
-# What the comparison decides. Cold starts are recorded apart from K1 (PRD, "Cara mengukur" point 5), so they get no
-# verdict. Two Tauri results, without and with Node's compile cache, decide D12, which asks only whether the start
-# times (a) and (b) are faster.
-$coldResults = @(@($electronResult, $tauriResult) | Where-Object {
-        $null -ne $_.settings -and $null -ne $_.settings.PSObject.Properties['cold'] -and $_.settings.cold
-    })
-$mode = if ($coldResults.Count -gt 0) { 'cold' }
-elseif ($electronResult.build -in 'Tauri', 'TauriCache' -and $tauriResult.build -in 'Tauri', 'TauriCache') { 'D12' }
-else { 'K1' }
-$judged = switch ($mode) { 'cold' { @() } 'D12' { @('window', 'composer') } default { @($metrics | ForEach-Object { $_.Key }) } }
 $title = switch ($mode) {
     'cold' { "# Start dingin, bukan K1: $first lawan $second" }
     'D12' { "# D12, compile cache Node: $first lawan $second" }
@@ -187,6 +206,9 @@ $lines = @(
 # A difference means something only when both results were measured interleaved, at the same time and power mode.
 $stampOf = { param($result) if ($null -ne $result.settings -and $null -ne $result.settings.PSObject.Properties['stamp']) { $result.settings.stamp } }
 $sameRun = $null -ne (& $stampOf $electronResult) -and (& $stampOf $electronResult) -eq (& $stampOf $tauriResult)
+if ($mode -eq 'cold' -and $coldResults.Count -lt 2) {
+    $lines += "Peringatan: hanya $($coldResults[0].label) yang start dingin, jadi kedua hasil tidak sebanding.", ''
+}
 if (-not $sameRun -and $mode -ne 'cold') {
     $lines += 'Peringatan: kedua hasil tidak diukur bergantian dalam satu pemanggilan Measure-Desktop.ps1, jadi waktu pengukuran ikut memengaruhi selisihnya.', ''
 }
@@ -210,7 +232,7 @@ foreach ($row in $rows) {
     $lines += '| {0} ({1}) | {2} | {3} | {4} | {5} | {6} | {7} |' -f $row.Metric, $row.Unit, (& $format $row.Electron), (& $format $row.Tauri),
     (& $format $row.Difference), (& $format $row.Variation), $verdict, $row.Note
 }
-if ($mode -eq 'K1') {
+if ($mode -ne 'D12') {
     $electronHost = Get-Median -Values @(Get-RunValues -Result $electronResult -Metric host)
     $tauriHost = Get-Median -Values @(Get-RunValues -Result $tauriResult -Metric host)
     if ($null -ne $electronHost -and $null -ne $tauriHost) {
@@ -222,8 +244,18 @@ if ($mode -eq 'K1') {
 $judgedRows = @($rows | Where-Object { $_.Key -in $judged })
 $incomplete = @(@($electronResult, $tauriResult) | Where-Object { $null -ne $_.PSObject.Properties['aborted'] -and $_.aborted })
 # PRD, "Cara mengukur" point 5: five launches per scenario.
-$runsOf = { param($result) if ($null -ne $result.settings -and $null -ne $result.settings.PSObject.Properties['runs']) { [int] $result.settings.runs } else { 0 } }
-$fewRuns = @(@($electronResult, $tauriResult) | Where-Object { (& $runsOf $_) -lt 5 })
+$fewRuns = @(@($electronResult, $tauriResult) | Where-Object { [int] (Get-Setting -Result $_ -Name 'runs') -lt 5 })
+# PRD, "Cara mengukur" point 2: K1 covers S1 to S3, and S1 idles two minutes after the composer is ready.
+$partial = @(@($electronResult, $tauriResult) | Where-Object {
+        $scenarios = @(Get-Setting -Result $_ -Name 'scenarios')
+        @('S1', 'S2', 'S3' | Where-Object { $scenarios -notcontains $_ }).Count -gt 0
+    })
+$shortIdle = @(@($electronResult, $tauriResult) | Where-Object { [int] (Get-Setting -Result $_ -Name 'idleSeconds') -lt 120 })
+$rolesWrong = switch ($mode) {
+    'K1' { $electronResult.build -ne 'Electron' -or $tauriResult.build -notin 'Tauri', 'TauriCache' }
+    'D12' { $electronResult.build -ne 'Tauri' -or $tauriResult.build -ne 'TauriCache' }
+    default { $false }
+}
 $lines += ''
 if ($mode -eq 'cold') {
     $lines += 'Start dingin dicatat terpisah dan bukan bagian K1 (PRD, "Cara mengukur" butir 5), jadi tabel ini tanpa putusan.'
@@ -232,8 +264,9 @@ elseif ($incomplete.Count -gt 0) {
     $lines += 'Hasil: **belum bisa dinilai**; pengukuran ' + (($incomplete | ForEach-Object label) -join ' dan ') +
     ' berhenti sebelum selesai. Ulangi pengukurannya.'
 }
-elseif ($mode -eq 'K1' -and ($electronResult.build -ne 'Electron' -or $tauriResult.build -notin 'Tauri', 'TauriCache')) {
-    $lines += 'Hasil: **belum bisa dinilai**; untuk K1, -Electron harus hasil build Electron dan -Tauri hasil build Tauri.'
+elseif ($rolesWrong) {
+    $lines += if ($mode -eq 'D12') { 'Hasil: **belum bisa dinilai**; untuk D12, -Electron harus tauri.json (tanpa compile cache) dan -Tauri harus tauri-cache.json.' }
+    else { 'Hasil: **belum bisa dinilai**; untuk K1, -Electron harus hasil build Electron dan -Tauri hasil build Tauri.' }
 }
 elseif (-not $sameRun) {
     $lines += 'Hasil: **belum bisa dinilai**; kedua hasil tidak diukur bergantian dalam satu pemanggilan Measure-Desktop.ps1. Ulangi pengukurannya.'
@@ -241,6 +274,14 @@ elseif (-not $sameRun) {
 elseif ($fewRuns.Count -gt 0) {
     $lines += 'Hasil: **belum bisa dinilai**; PRD meminta lima peluncuran per skenario, dan ' + (($fewRuns | ForEach-Object label) -join ' dan ') +
     ' diukur dengan kurang dari itu. Ulangi pengukurannya.'
+}
+elseif ($mode -eq 'K1' -and $partial.Count -gt 0) {
+    $lines += 'Hasil: **belum bisa dinilai**; K1 butuh S1, S2, dan S3, dan ' + (($partial | ForEach-Object label) -join ' dan ') +
+    ' tidak mengukur semuanya. Ulangi Measure-Desktop.ps1 tanpa -Scenario.'
+}
+elseif ($mode -eq 'K1' -and $shortIdle.Count -gt 0) {
+    $lines += 'Hasil: **belum bisa dinilai**; PRD meminta S1 idle 2 menit, dan ' + (($shortIdle | ForEach-Object label) -join ' dan ') +
+    ' diukur dengan idle lebih singkat. Ulangi Measure-Desktop.ps1 tanpa -IdleSeconds.'
 }
 elseif (@($judgedRows | Where-Object Pass).Count -eq $judgedRows.Count) {
     $lines += if ($mode -eq 'D12') { 'Hasil D12: **compile cache mempercepat (a) dan (b)**, dengan selisih di atas variasi antar-run.' }
@@ -252,6 +293,10 @@ elseif (@($judgedRows | Where-Object { -not $_.Pass -and -not $_.Undecided }).Co
 else {
     $lines += if ($mode -eq 'D12') { 'Hasil D12: **compile cache tidak terbukti mempercepat (a) dan (b)**; yang ditandai "tidak" tidak lebih cepat dengan selisih di atas variasi antar-run.' }
     else { 'Hasil: **tidak lolos K1**; metrik yang tidak lolos ditandai "tidak".' }
+}
+
+if ($mode -eq 'K1' -and $tauriResult.build -eq 'TauriCache') {
+    $lines += '', 'Catatan: ini K1 dengan compile cache, yang berlaku hanya bila D12 dipakai (perbandingan tauri.json lawan tauri-cache.json berbunyi "compile cache mempercepat (a) dan (b)"). Bila tidak, K1 diputuskan oleh perbandingan electron.json lawan tauri.json.'
 }
 
 if ($OutputPath) { $lines | Set-Content -Path $OutputPath -Encoding utf8 }

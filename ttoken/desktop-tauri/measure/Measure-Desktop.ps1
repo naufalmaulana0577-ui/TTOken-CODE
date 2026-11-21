@@ -487,9 +487,19 @@ function Assert-CompileCache {
 }
 
 # Ninety minutes without input would let Windows turn the display off and sleep: a launch in flight would time out
-# and the session would lock. While this script runs, Windows keeps the system and the display on.
-Add-Type -Namespace TTokenMeasure -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
-$null = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000003) # ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED
+# and the session would lock. While this script runs, Windows keeps the system and the display on; when that cannot
+# be arranged, the measurement goes on with a warning.
+$keptAwake = $false
+try {
+    Add-Type -Namespace TTokenMeasure -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
+    # ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED. The u suffix keeps the flags unsigned: a plain
+    # 0x80000003 is a negative Int32, which the uint parameter rejects.
+    $null = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000003u)
+    $keptAwake = $true
+}
+catch {
+    Write-Warning "Windows tidak bisa ditahan agar tetap menyala ($($_.Exception.Message)); atur tidur dan layar mati ke Never selama pengukuran."
+}
 try {
     Assert-NoUserInstance
 
@@ -632,5 +642,5 @@ try {
 }
 finally {
     # ES_CONTINUOUS alone ends the request; Windows may sleep again.
-    $null = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000000)
+    if ($keptAwake) { $null = [TTokenMeasure.Power]::SetThreadExecutionState(0x80000000u) }
 }

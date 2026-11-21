@@ -1,8 +1,12 @@
-// Page helpers for the TTOken Code desktop measurements. Measure-Desktop.ps1 evaluates this once per page through
-// the DevTools protocol, then calls window.__ttokenMeasure. Selectors use data attributes and ARIA roles of the Web
+// Page helpers for the TTOken Code desktop measurements. Measure-Desktop.ps1 evaluates this through the DevTools
+// protocol until it returns true, then calls window.__ttokenMeasure. Selectors use data attributes and ARIA roles of the Web
 // client, so they hold in every interface language; the rail labels list all eight locales.
 (() => {
   if (window.__ttokenMeasure !== undefined) return true
+  // Chromium lists a page under the URL it is navigating to while the frame still holds its initial about:blank
+  // document, so an early install could land there and be lost when the app document commits. The caller retries
+  // until the app document has the helpers.
+  if (location.protocol === 'about:') return false
 
   const COMPOSER = '[data-composer-input][contenteditable="true"]'
   const ASSISTANT_STEP = '[data-chat-flow-kind="assistant-step"]'

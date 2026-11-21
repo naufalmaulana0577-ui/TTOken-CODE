@@ -21,9 +21,29 @@ $script:Fixture = @{
 }
 
 function Install-PageHelpers {
-    <# .SYNOPSIS Define window.__ttokenMeasure in the page (page.js); it is kept until the page reloads. #>
-    param([Parameter(Mandatory)] [object] $Session)
-    Invoke-CdpScript -Session $Session -Expression $script:PageHelpers | Out-Null
+    <#
+    .SYNOPSIS
+    Define window.__ttokenMeasure in the page (page.js); it is kept until the page reloads.
+
+    .DESCRIPTION
+    A page found while its first navigation is still pending holds the initial about:blank document, where page.js
+    declines to install, and an evaluation can also meet the document being replaced. The install is retried until the
+    app document has the helpers.
+    #>
+    param([Parameter(Mandatory)] [object] $Session, [int] $TimeoutSeconds = 60)
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $reason = 'the page stayed at about:blank'
+    while ($true) {
+        try {
+            if (Invoke-CdpScript -Session $Session -Expression $script:PageHelpers) { return }
+        }
+        catch {
+            if ($Session.Socket.State -ne [System.Net.WebSockets.WebSocketState]::Open) { throw }
+            $reason = $_.Exception.Message
+        }
+        if ((Get-Date) -gt $deadline) { throw "the page helpers could not be installed within $TimeoutSeconds seconds: $reason" }
+        Start-Sleep -Milliseconds 20
+    }
 }
 
 function Wait-Composer {

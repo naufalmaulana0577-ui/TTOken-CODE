@@ -21,10 +21,15 @@ bound in either result, is not judged either way: it reads "belum bisa dinilai",
 A lost run can hide a slow or a fast one and narrows the variation, and an upper bound widens it, so neither a pass
 nor a failure is safe to read from such a metric. A metric with complete data that fails still fails the gate.
 
+A verdict needs both results from one interleaved call of Measure-Desktop.ps1 (the same stamp), with five launches
+per scenario as the PRD asks ("Cara mengukur" point 5); otherwise it reads "belum bisa dinilai".
+
 The "Host mulai" row is not part of K1: it shows how much of the (a) and (b) differences comes from the startup
 order (Electron loads the page before it starts the Host), not from the shell.
 
-For D12, pass the Tauri result without the cache as -Electron and the TauriCache result as -Tauri.
+For D12, pass the Tauri result without the cache as -Electron and the TauriCache result as -Tauri. Two Tauri results
+are judged on (a) and (b) only, and the verdict says whether the compile cache makes them faster. Cold start results
+(-Cold) are shown without a verdict: they are recorded apart from K1.
 
 .PARAMETER Electron
 First result file (the reference), for example electron.json from Measure-Desktop.ps1.
@@ -113,7 +118,7 @@ $rows = foreach ($metric in $metrics) {
     $electronValues = @(Get-RunValues -Result $electronResult -Metric $metric.Key)
     $tauriValues = @(Get-RunValues -Result $tauriResult -Metric $metric.Key)
     if ($electronValues.Count -eq 0 -or $tauriValues.Count -eq 0) {
-        [pscustomobject]@{ Metric = $metric.Name; Unit = $metric.Unit; Electron = $null; Tauri = $null; Difference = $null; Variation = $null; Pass = $false; Undecided = $true; Note = 'tidak ada data' }
+        [pscustomobject]@{ Key = $metric.Key; Metric = $metric.Name; Unit = $metric.Unit; Electron = $null; Tauri = $null; Difference = $null; Variation = $null; Pass = $false; Undecided = $true; Note = 'tidak ada data' }
         continue
     }
     $electronMedian = Get-Median -Values $electronValues
@@ -141,6 +146,7 @@ $rows = foreach ($metric in $metrics) {
     }
     if ($undecided) { $pass = $false }
     [pscustomobject]@{
+        Key        = $metric.Key
         Metric     = $metric.Name
         Unit       = $metric.Unit
         Electron   = $electronMedian / $metric.Scale
@@ -153,9 +159,25 @@ $rows = foreach ($metric in $metrics) {
     }
 }
 
+# What the comparison decides. Cold starts are recorded apart from K1 (PRD, "Cara mengukur" point 5), so they get no
+# verdict. Two Tauri results, without and with Node's compile cache, decide D12, which asks only whether the start
+# times (a) and (b) are faster.
+$coldResults = @(@($electronResult, $tauriResult) | Where-Object {
+        $null -ne $_.settings -and $null -ne $_.settings.PSObject.Properties['cold'] -and $_.settings.cold
+    })
+$mode = if ($coldResults.Count -gt 0) { 'cold' }
+elseif ($electronResult.build -in 'Tauri', 'TauriCache' -and $tauriResult.build -in 'Tauri', 'TauriCache') { 'D12' }
+else { 'K1' }
+$judged = switch ($mode) { 'cold' { @() } 'D12' { @('window', 'composer') } default { @($metrics | ForEach-Object { $_.Key }) } }
+$title = switch ($mode) {
+    'cold' { "# Start dingin, bukan K1: $first lawan $second" }
+    'D12' { "# D12, compile cache Node: $first lawan $second" }
+    default { "# Gerbang Fase 0 (K1): $first lawan $second" }
+}
+
 $format = { param($value) if ($null -eq $value) { '-' } else { '{0:N1}' -f $value } }
 $lines = @(
-    "# Gerbang Fase 0 (K1): $first lawan $second"
+    $title
     ''
     "$($first): $Electron  "
     "$($second): $Tauri  "
@@ -165,7 +187,7 @@ $lines = @(
 # A difference means something only when both results were measured interleaved, at the same time and power mode.
 $stampOf = { param($result) if ($null -ne $result.settings -and $null -ne $result.settings.PSObject.Properties['stamp']) { $result.settings.stamp } }
 $sameRun = $null -ne (& $stampOf $electronResult) -and (& $stampOf $electronResult) -eq (& $stampOf $tauriResult)
-if (-not $sameRun) {
+if (-not $sameRun -and $mode -ne 'cold') {
     $lines += 'Peringatan: kedua hasil tidak diukur bergantian dalam satu pemanggilan Measure-Desktop.ps1, jadi waktu pengukuran ikut memengaruhi selisihnya.', ''
 }
 $powerOf = { param($result) if ($null -ne $result.machine) { $result.machine.PSObject.Properties['power'] } }
@@ -184,32 +206,52 @@ foreach ($result in $electronResult, $tauriResult) {
 $lines += "| Metrik | $first (median) | $second (median) | Selisih ($first dikurangi $second) | Variasi antar-run | Lolos | Catatan |"
 $lines += '| --- | --- | --- | --- | --- | --- | --- |'
 foreach ($row in $rows) {
-    $verdict = if ($row.Pass) { 'ya' } elseif ($row.Undecided) { 'belum bisa dinilai' } else { 'tidak' }
+    $verdict = if ($row.Key -notin $judged) { '-' } elseif ($row.Pass) { 'ya' } elseif ($row.Undecided) { 'belum bisa dinilai' } else { 'tidak' }
     $lines += '| {0} ({1}) | {2} | {3} | {4} | {5} | {6} | {7} |' -f $row.Metric, $row.Unit, (& $format $row.Electron), (& $format $row.Tauri),
     (& $format $row.Difference), (& $format $row.Variation), $verdict, $row.Note
 }
-$electronHost = Get-Median -Values @(Get-RunValues -Result $electronResult -Metric host)
-$tauriHost = Get-Median -Values @(Get-RunValues -Result $tauriResult -Metric host)
-if ($null -ne $electronHost -and $null -ne $tauriHost) {
-    $lines += '| Host mulai (ms sejak start, bukan bagian K1) | {0} | {1} | {2} | - | - | Bagian selisih (a) dan (b) yang datang dari urutan start, bukan dari shell |' -f
-    (& $format $electronHost), (& $format $tauriHost), (& $format ($electronHost - $tauriHost))
+if ($mode -eq 'K1') {
+    $electronHost = Get-Median -Values @(Get-RunValues -Result $electronResult -Metric host)
+    $tauriHost = Get-Median -Values @(Get-RunValues -Result $tauriResult -Metric host)
+    if ($null -ne $electronHost -and $null -ne $tauriHost) {
+        $lines += '| Host mulai (ms sejak start, bukan bagian K1) | {0} | {1} | {2} | - | - | Bagian selisih (a) dan (b) yang datang dari urutan start, bukan dari shell |' -f
+        (& $format $electronHost), (& $format $tauriHost), (& $format ($electronHost - $tauriHost))
+    }
 }
 
-$passed = @($rows | Where-Object Pass).Count -eq $rows.Count
+$judgedRows = @($rows | Where-Object { $_.Key -in $judged })
 $incomplete = @(@($electronResult, $tauriResult) | Where-Object { $null -ne $_.PSObject.Properties['aborted'] -and $_.aborted })
+# PRD, "Cara mengukur" point 5: five launches per scenario.
+$runsOf = { param($result) if ($null -ne $result.settings -and $null -ne $result.settings.PSObject.Properties['runs']) { [int] $result.settings.runs } else { 0 } }
+$fewRuns = @(@($electronResult, $tauriResult) | Where-Object { (& $runsOf $_) -lt 5 })
 $lines += ''
-if ($incomplete.Count -gt 0) {
+if ($mode -eq 'cold') {
+    $lines += 'Start dingin dicatat terpisah dan bukan bagian K1 (PRD, "Cara mengukur" butir 5), jadi tabel ini tanpa putusan.'
+}
+elseif ($incomplete.Count -gt 0) {
     $lines += 'Hasil: **belum bisa dinilai**; pengukuran ' + (($incomplete | ForEach-Object label) -join ' dan ') +
-    ' berhenti sebelum selesai. Ulangi sebelum memutuskan K1.'
+    ' berhenti sebelum selesai. Ulangi pengukurannya.'
 }
-elseif ($passed) {
-    $lines += 'Hasil: **lolos K1**, semua metrik lebih baik dengan selisih di atas variasi antar-run.'
+elseif ($mode -eq 'K1' -and ($electronResult.build -ne 'Electron' -or $tauriResult.build -notin 'Tauri', 'TauriCache')) {
+    $lines += 'Hasil: **belum bisa dinilai**; untuk K1, -Electron harus hasil build Electron dan -Tauri hasil build Tauri.'
 }
-elseif (@($rows | Where-Object { -not $_.Pass -and -not $_.Undecided }).Count -eq 0) {
+elseif (-not $sameRun) {
+    $lines += 'Hasil: **belum bisa dinilai**; kedua hasil tidak diukur bergantian dalam satu pemanggilan Measure-Desktop.ps1. Ulangi pengukurannya.'
+}
+elseif ($fewRuns.Count -gt 0) {
+    $lines += 'Hasil: **belum bisa dinilai**; PRD meminta lima peluncuran per skenario, dan ' + (($fewRuns | ForEach-Object label) -join ' dan ') +
+    ' diukur dengan kurang dari itu. Ulangi pengukurannya.'
+}
+elseif (@($judgedRows | Where-Object Pass).Count -eq $judgedRows.Count) {
+    $lines += if ($mode -eq 'D12') { 'Hasil D12: **compile cache mempercepat (a) dan (b)**, dengan selisih di atas variasi antar-run.' }
+    else { 'Hasil: **lolos K1**, semua metrik lebih baik dengan selisih di atas variasi antar-run.' }
+}
+elseif (@($judgedRows | Where-Object { -not $_.Pass -and -not $_.Undecided }).Count -eq 0) {
     $lines += 'Hasil: **belum bisa dinilai**; metrik yang ditandai "belum bisa dinilai" kehilangan run atau hanya punya batas atas. Ulangi pengukurannya.'
 }
 else {
-    $lines += 'Hasil: **tidak lolos K1**; metrik yang tidak lolos ditandai "tidak".'
+    $lines += if ($mode -eq 'D12') { 'Hasil D12: **compile cache tidak terbukti mempercepat (a) dan (b)**; yang ditandai "tidak" tidak lebih cepat dengan selisih di atas variasi antar-run.' }
+    else { 'Hasil: **tidak lolos K1**; metrik yang tidak lolos ditandai "tidak".' }
 }
 
 if ($OutputPath) { $lines | Set-Content -Path $OutputPath -Encoding utf8 }

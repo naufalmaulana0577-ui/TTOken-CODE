@@ -10,8 +10,9 @@ resident set size instead; those numbers are recorded separately and are not com
 
 Set-StrictMode -Version Latest
 
-# The type survives a second import in the same session, so it is added once.
-if ($IsWindows -and -not ('TTokenWindows' -as [type])) {
+# A type cannot be replaced once loaded, so a session that imported an older version of this module keeps the older
+# type. Its name therefore changes whenever its members do; within one version it is added once.
+if ($IsWindows -and -not ('TTokenDesktopWindows' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
@@ -19,7 +20,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-public static class TTokenWindows {
+public static class TTokenDesktopWindows {
     private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
 
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
@@ -197,7 +198,7 @@ function Test-ProcessWindow {
     <# .SYNOPSIS True when the process owns a visible top-level window of at least 400 by 300 pixels (Windows only). #>
     param([Parameter(Mandatory)] [int] $ProcessId)
     if (-not $IsWindows) { throw 'Test-ProcessWindow needs Windows' }
-    [TTokenWindows]::HasVisibleWindow([uint32] $ProcessId, 400, 300)
+    [TTokenDesktopWindows]::HasVisibleWindow([uint32] $ProcessId, 400, 300)
 }
 
 function Start-WindowWatch {
@@ -212,7 +213,7 @@ function Start-WindowWatch {
     param([Parameter(Mandatory)] [System.Diagnostics.Process] $Process, [int] $TimeoutSeconds = 120)
     if (-not $IsWindows) { throw 'Start-WindowWatch needs Windows' }
     [pscustomobject]@{
-        Task           = [TTokenWindows]::WatchVisibleWindow($Process, 400, 300, $TimeoutSeconds * 1000)
+        Task           = [TTokenDesktopWindows]::WatchVisibleWindow($Process, 400, 300, $TimeoutSeconds * 1000)
         Process        = $Process
         TimeoutSeconds = $TimeoutSeconds
     }

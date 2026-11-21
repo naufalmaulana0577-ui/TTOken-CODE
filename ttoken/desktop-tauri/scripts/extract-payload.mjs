@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto'
 import {
   chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync,
-  renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync, writeSync,
+  renameSync, rmdirSync, statSync, symlinkSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
@@ -23,6 +23,9 @@ const PROJECT = 'dsh'
 const MARKER = '.ttoken-extract-payload'
 const CHUNK_BYTES = 1024 * 1024
 const MAX_LINK_DEPTH = 32
+// Errors Windows reports while antivirus or an indexer briefly holds a file open; they are retried.
+const BUSY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
+const RETRY_MS = 30_000
 const HOST_ENTRY = [PROJECT, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'index.js']
 
 const [resourcesArgument, outputArgument, ...extra] = process.argv.slice(2)
@@ -172,37 +175,64 @@ function assertReplaceable(path) {
   }
 }
 
-/** Remove a directory this script wrote; its runtime link is unlinked first so the runtime is never touched. */
+/** Block for `ms` milliseconds. */
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/**
+ * Run one file system change, retrying for up to 30 seconds while Windows reports the path in use. The script does
+ * its own retries: on Windows, fs.rmSync waits only a few milliseconds in total between its retries (Node 24, `RmSync`
+ * in src/node_file.cc sleeps `i * retryDelay / 1000` milliseconds).
+ */
+function retrying(what, change) {
+  const deadline = performance.now() + RETRY_MS
+  for (let wait = 50, told = false; ; wait = Math.min(wait * 2, 1000)) {
+    try {
+      return change()
+    } catch (error) {
+      if (!BUSY_CODES.has(error.code) || performance.now() + wait > deadline) throw error
+      if (!told) {
+        console.log(`${what}: ${error.code}, retrying for up to ${RETRY_MS / 1000} s`)
+        told = true
+      }
+      sleep(wait)
+    }
+  }
+}
+
+/** Remove a file, a link, or a directory tree. A link is removed itself; its target (the runtime) is not touched. */
+function removeTree(path) {
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  if (stat === undefined) return
+  if (stat.isDirectory()) {
+    for (const name of readdirSync(path)) removeTree(join(path, name))
+    retrying(`remove ${path}`, () => { rmdirSync(path) })
+  } else {
+    retrying(`remove ${path}`, () => { unlinkSync(path) })
+  }
+}
+
+/**
+ * Remove a directory this script wrote. `payload.json`, written last, goes first and the marker goes last, so a
+ * removal cut short leaves a directory the next run neither takes for a complete payload nor refuses as foreign.
+ */
 function removeOwnDirectory(path) {
   if (!existsSync(path)) return
   assertReplaceable(path)
   const link = join(path, 'runtime')
-  let stat
-  try {
-    stat = lstatSync(link)
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
+  const stat = lstatSync(link, { throwIfNoEntry: false })
+  if (stat !== undefined && !stat.isSymbolicLink()) throw new Error(`${link} is not a link; remove ${path} by hand`)
+  removeTree(join(path, 'payload.json'))
+  for (const name of readdirSync(path)) {
+    if (name !== MARKER) removeTree(join(path, name))
   }
-  if (stat !== undefined) {
-    if (!stat.isSymbolicLink()) throw new Error(`${link} is not a link; remove ${path} by hand`)
-    unlinkSync(link)
-  }
-  // Antivirus and indexers briefly hold new files open on Windows; rmSync retries EBUSY and EPERM.
-  rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  removeTree(path)
 }
 
 /** Rename a directory, retrying for up to 30 seconds while Windows reports it in use. */
 function renameWithRetry(from, to) {
-  const deadline = performance.now() + 30_000
-  for (let wait = 50; ; wait = Math.min(wait * 2, 1000)) {
-    try {
-      renameSync(from, to)
-      return
-    } catch (error) {
-      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || performance.now() + wait > deadline) throw error
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait)
-    }
-  }
+  retrying(`rename ${from} to ${to}`, () => { renameSync(from, to) })
 }
 
 const archiveStat = statSync(archive)
@@ -222,12 +252,31 @@ function upToDate() {
   }
 }
 
+const staging = `${output}.partial`
+const previous = `${output}.previous`
+// A run stopped between its two renames leaves the earlier payload only at `.previous`; put it back first, so it is
+// kept until a new one is in place, and is reused when it is still current.
+if (!existsSync(output) && existsSync(join(previous, MARKER)) && existsSync(join(previous, 'payload.json'))) {
+  renameWithRetry(previous, output)
+  console.log(`restored the earlier payload from ${previous}`)
+}
+
+/** Remove what an earlier run left next to the output; a directory still in use is left for the next run. */
+function removeLeftovers() {
+  for (const path of [staging, previous]) {
+    try {
+      removeOwnDirectory(path)
+    } catch (error) {
+      console.warn(`could not remove ${path}: ${error.message}`)
+    }
+  }
+}
+
 if (upToDate()) {
   console.log(`${output} is up to date with ${archive}`)
+  removeLeftovers()
 } else {
   const started = performance.now()
-  const staging = `${output}.partial`
-  const previous = `${output}.previous`
   // Refuse a foreign output directory before any work, not after the extraction.
   assertReplaceable(output)
   removeOwnDirectory(staging)
@@ -260,7 +309,8 @@ if (upToDate()) {
     removeOwnDirectory(staging)
     throw error
   }
-  removeOwnDirectory(previous)
+  // The new payload is in place; an earlier one that cannot be removed now is removed by the next run.
+  removeLeftovers()
   const seconds = ((performance.now() - started) / 1000).toFixed(1)
   const megabytes = (context.bytes / 1024 / 1024).toFixed(1)
   console.log(`extracted ${context.files} files (${megabytes} MB, ${context.links} links) in ${seconds} s into ${join(output, PROJECT)}`)

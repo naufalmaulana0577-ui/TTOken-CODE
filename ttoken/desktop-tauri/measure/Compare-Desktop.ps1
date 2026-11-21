@@ -1,35 +1,39 @@
 #Requires -Version 7.2
 <#
 .SYNOPSIS
-Bandingkan dua hasil ukur (biasanya Electron lawan Tauri) dengan ambang gerbang Fase 0 (K1).
+Compare two measurement results (usually Electron against Tauri) with the phase 0 gate threshold (K1).
 
 .DESCRIPTION
-K1 (PRD-TAURI, bagian "Keputusan Naufal"): lanjut bila memori total lebih rendah di S1 sampai S3, dan (a), (b), (c)
-lebih cepat, masing-masing dengan selisih lebih besar dari variasi antar-run, tanpa batas persentase minimum.
+K1 (PRD-TAURI, "Keputusan Naufal"): continue when total memory is lower in S1 to S3, and (a), (b), (c) are faster,
+each by a difference larger than the run-to-run variation, with no minimum percentage.
 
-Nilai per run:
-- memori: median lima sampel memori total satu peluncuran, per skenario;
-- (a) dan (b): satu nilai per peluncuran, dari semua skenario; tiap peluncuran mulai dari keadaan yang sama;
-- (c): median keenam ganti sesi dalam satu peluncuran S3.
+Values per run:
+- memory: the median of the five total memory samples of one launch, per scenario;
+- (a) and (b): one value per launch, from every scenario; every launch starts from the same state;
+- (c): the median of the six session switches of one S3 launch.
 
-Variasi antar-run sebuah metrik adalah rentang nilai per run (maksimum dikurangi minimum), diambil yang lebih besar dari
-kedua hasil. Sebuah metrik lolos bila median hasil kedua lebih kecil dari median hasil pertama dengan selisih lebih
-besar dari variasi itu. Gerbang lolos hanya bila keenam metrik lolos. Metrik yang kehilangan run (run gagal) atau
-yang nilai (b) Electron-nya hanya batas atas tidak bisa dinilai; hasilnya "belum bisa dinilai", bukan "lolos".
+A metric's run-to-run variation is the range of its per-run values (maximum minus minimum), the larger of the two
+results. A metric passes when the second result's median is below the first one's by more than that variation. The
+gate passes only when all six metrics pass.
 
-Baris "Host mulai" tidak ikut K1: ia menunjukkan berapa bagian dari selisih (a) dan (b) yang datang dari urutan start
-(Electron memuat halaman dulu baru menjalankan Host), bukan dari shell.
+Only launches that finished and started from Session A count. A metric that lost runs, or whose (b) is only an upper
+bound in either result, is not judged either way: it reads "belum bisa dinilai", and the measurement is repeated.
+A lost run can hide a slow or a fast one and narrows the variation, and an upper bound widens it, so neither a pass
+nor a failure is safe to read from such a metric. A metric with complete data that fails still fails the gate.
 
-Untuk D12, pakai hasil Tauri tanpa cache sebagai -Electron dan hasil TauriCache sebagai -Tauri.
+The "Host mulai" row is not part of K1: it shows how much of the (a) and (b) differences comes from the startup
+order (Electron loads the page before it starts the Host), not from the shell.
+
+For D12, pass the Tauri result without the cache as -Electron and the TauriCache result as -Tauri.
 
 .PARAMETER Electron
-File hasil pertama (pembanding), misalnya electron.json dari Measure-Desktop.ps1.
+First result file (the reference), for example electron.json from Measure-Desktop.ps1.
 
 .PARAMETER Tauri
-File hasil kedua (yang diuji), misalnya tauri.json atau tauri-cache.json.
+Second result file (the one tested), for example tauri.json or tauri-cache.json.
 
 .PARAMETER OutputPath
-File Markdown untuk tabel hasil; tanpa parameter ini tabel hanya ditampilkan.
+Markdown file for the result table; without it the table is only printed.
 #>
 [CmdletBinding()]
 param(
@@ -53,9 +57,17 @@ function Get-Median {
     ($sorted[$middle - 1] + $sorted[$middle]) / 2
 }
 
+function Test-Counted {
+    <# A launch counts when it finished and, where its start state is recorded, started from Session A. #>
+    param([Parameter(Mandatory)] [object] $Record)
+    if ($null -ne $Record.failure) { return $false }
+    $startedOn = $Record.PSObject.Properties['startedOn']
+    $null -eq $startedOn -or $startedOn.Value -eq 'A'
+}
+
 function Get-RunValues {
     param([Parameter(Mandatory)] [object] $Result, [Parameter(Mandatory)] [string] $Metric)
-    $records = @($Result.records | Where-Object { $null -eq $_.failure })
+    $records = @($Result.records | Where-Object { Test-Counted -Record $_ })
     switch -Regex ($Metric) {
         '^memory-(S[123])$' {
             $scenario = $Matches[1]
@@ -76,7 +88,7 @@ function Get-RunValues {
 }
 
 function Get-ExpectedCount {
-    <# Run yang seharusnya ada untuk sebuah metrik, dari pengaturan pengukuran. #>
+    <# The runs a metric should have, from the measurement settings. #>
     param([Parameter(Mandatory)] [object] $Result, [Parameter(Mandatory)] [string] $Metric)
     $runs = [int] $Result.settings.runs
     $scenarios = @($Result.settings.scenarios)
@@ -112,34 +124,22 @@ $rows = foreach ($metric in $metrics) {
     $pass = $difference -gt 0 -and $difference -gt $variation
     $undecided = $false
     $note = "$($electronValues.Count) dan $($tauriValues.Count) run"
-    # Run yang gagal hilang dari nilai, dan yang tersisa bisa saja run tercepat. Metrik yang tetap kalah tetap "tidak";
-    # yang tampak lolos belum bisa dinilai.
+    # A lost run can hide a slow or a fast one and narrows the variation, so the metric is not judged either way.
     $missing = @(
         @{ Label = $first; Have = $electronValues.Count; Want = Get-ExpectedCount -Result $electronResult -Metric $metric.Key }
         @{ Label = $second; Have = $tauriValues.Count; Want = Get-ExpectedCount -Result $tauriResult -Metric $metric.Key }
     ) | Where-Object { $_.Have -lt $_.Want }
-    foreach ($gap in $missing) { $note += "; $($gap.Label) hanya $($gap.Have) dari $($gap.Want) run berhasil" }
-    if (@($missing).Count -gt 0 -and $pass) {
-        $pass = $false
-        $undecided = $true
-    }
+    foreach ($gap in $missing) { $note += "; $($gap.Label) hanya $($gap.Have) dari $($gap.Want) run yang bisa dipakai" }
+    if (@($missing).Count -gt 0) { $undecided = $true }
     if ($metric.Key -eq 'composer') {
-        # (b) yang terlambat diamati hanya batas atas; di hasil pertama, batas atas bisa membesar-besarkan keunggulan hasil kedua.
-        $electronLate = @($electronResult.records | Where-Object { $null -eq $_.failure -and $_.composerLate }).Count
-        $tauriLate = @($tauriResult.records | Where-Object { $null -eq $_.failure -and $_.composerLate }).Count
-        if ($electronLate -gt 0 -and $pass) {
-            $pass = $false
-            $undecided = $true
-        }
-        if ($electronLate -gt 0) { $note += "; $electronLate run $first hanya batas atas, ulangi pengukurannya" }
+        # A (b) observed late is only an upper bound; in either result it can widen the variation or the difference.
+        $electronLate = @($electronResult.records | Where-Object { (Test-Counted -Record $_) -and $_.composerLate }).Count
+        $tauriLate = @($tauriResult.records | Where-Object { (Test-Counted -Record $_) -and $_.composerLate }).Count
+        if ($electronLate -gt 0) { $note += "; $electronLate run $first hanya batas atas" }
         if ($tauriLate -gt 0) { $note += "; $tauriLate run $second hanya batas atas" }
+        if ($electronLate + $tauriLate -gt 0) { $undecided = $true }
     }
-    if ($metric.Key -in 'window', 'composer') {
-        $offState = @(@($electronResult.records) + @($tauriResult.records) | Where-Object {
-                $null -eq $_.failure -and $null -ne $_.PSObject.Properties['startedOn'] -and $_.startedOn -ne 'A'
-            }).Count
-        if ($offState -gt 0) { $note += "; $offState peluncuran tidak mulai dari sesi A" }
-    }
+    if ($undecided) { $pass = $false }
     [pscustomobject]@{
         Metric     = $metric.Name
         Unit       = $metric.Unit
@@ -162,7 +162,7 @@ $lines = @(
     "Mesin: $($tauriResult.machine.os), $($tauriResult.machine.cpu)"
     ''
 )
-# Selisih hanya berarti bila kedua hasil diukur bergantian pada waktu dan mode daya yang sama.
+# A difference means something only when both results were measured interleaved, at the same time and power mode.
 $stampOf = { param($result) if ($null -ne $result.settings -and $null -ne $result.settings.PSObject.Properties['stamp']) { $result.settings.stamp } }
 $sameRun = $null -ne (& $stampOf $electronResult) -and (& $stampOf $electronResult) -eq (& $stampOf $tauriResult)
 if (-not $sameRun) {
@@ -173,6 +173,13 @@ $powerFirst = & $powerOf $electronResult
 $powerSecond = & $powerOf $tauriResult
 if ($null -ne $powerFirst -and $null -ne $powerSecond -and (($powerFirst.Value | ConvertTo-Json -Compress) -ne ($powerSecond.Value | ConvertTo-Json -Compress))) {
     $lines += 'Peringatan: sumber atau skema daya berbeda di kedua hasil.', ''
+}
+# Launches that finished but did not start from Session A are left out like failed ones.
+foreach ($result in $electronResult, $tauriResult) {
+    $offState = @($result.records | Where-Object {
+            $null -eq $_.failure -and $null -ne $_.PSObject.Properties['startedOn'] -and $_.startedOn -ne 'A'
+        }).Count
+    if ($offState -gt 0) { $lines += "Peringatan: $offState peluncuran $($result.label) tidak mulai dari sesi A, jadi tidak dipakai.", '' }
 }
 $lines += "| Metrik | $first (median) | $second (median) | Selisih ($first dikurangi $second) | Variasi antar-run | Lolos | Catatan |"
 $lines += '| --- | --- | --- | --- | --- | --- | --- |'

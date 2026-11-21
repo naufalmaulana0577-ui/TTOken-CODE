@@ -142,13 +142,25 @@ impl HostHandle {
     }
 
     /// Ask the Host to stop and wait until its process has exited.
+    ///
+    /// Every caller waits, also one that calls while another stop is in progress: the process may end as soon as
+    /// this returns, and the Host must not outlive it.
     pub async fn stop(&self) {
         self.stop.send_replace(true);
         let supervisor = self.supervisor.lock().unwrap_or_else(PoisonError::into_inner).take();
         if let Some(supervisor) = supervisor {
             // A panicked supervisor already dropped the child, and `kill_on_drop` ended it.
             drop(supervisor.await);
+            return;
         }
+        // Another caller awaits the supervisor; its last act is to publish the final state. A panicked supervisor
+        // drops the sender instead, which also ends the wait.
+        let mut state = self.state.clone();
+        drop(
+            state
+                .wait_for(|state| matches!(state, HostState::Stopped | HostState::Failed(_)))
+                .await,
+        );
     }
 }
 
@@ -508,7 +520,63 @@ fn exit_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{HostEvent, owned_host_url, parse_event};
+    use super::{HostEvent, HostHandle, HostState, owned_host_url, parse_event};
+    use std::sync::Mutex;
+    use std::time::Duration;
+    use tokio::sync::watch;
+
+    /// A handle whose supervisor stands in for a Host: it waits for the stop request, then runs `finish`.
+    fn stand_in(finish: impl FnOnce(watch::Sender<HostState>) + Send + 'static) -> HostHandle {
+        let (state_sender, state) = watch::channel(HostState::Starting);
+        let (stop, mut stop_receiver) = watch::channel(false);
+        let supervisor = tauri::async_runtime::spawn(async move {
+            drop(stop_receiver.wait_for(|stop| *stop).await);
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            finish(state_sender);
+        });
+        HostHandle {
+            state,
+            stop,
+            supervisor: Mutex::new(Some(supervisor)),
+        }
+    }
+
+    #[test]
+    fn a_second_stop_waits_for_the_first() {
+        tauri::async_runtime::block_on(async {
+            let host = stand_in(|sender| {
+                sender.send_replace(HostState::Stopped);
+            });
+            // The first caller owns the supervisor, as the exit sequence does when the event loop ends.
+            let first = host
+                .supervisor
+                .lock()
+                .expect("supervisor")
+                .take()
+                .expect("running supervisor");
+            host.stop().await;
+            assert!(matches!(*host.state.borrow(), HostState::Stopped));
+            first.await.expect("supervisor");
+        });
+    }
+
+    #[test]
+    fn a_second_stop_ends_when_the_supervisor_dies() {
+        tauri::async_runtime::block_on(async {
+            let host = stand_in(drop);
+            let first = host
+                .supervisor
+                .lock()
+                .expect("supervisor")
+                .take()
+                .expect("running supervisor");
+            tokio::time::timeout(Duration::from_secs(5), host.stop())
+                .await
+                .expect("stop returns once the supervisor is gone");
+            assert!(matches!(*host.state.borrow(), HostState::Starting));
+            first.await.expect("supervisor");
+        });
+    }
 
     #[test]
     fn accepts_the_electron_message_set() {

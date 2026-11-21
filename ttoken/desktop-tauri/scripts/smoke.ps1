@@ -1,32 +1,32 @@
 #Requires -Version 7.2
 <#
 .SYNOPSIS
-Buka prototipe shell Tauri dengan sebuah payload sampai composer tampil, ambil screenshot, lalu tutup.
+Open the Tauri shell prototype with a payload until the composer shows, take a screenshot, then close it.
 
 .DESCRIPTION
-Dipakai CI (workflow ttoken-desktop-tauri.yml) dan bisa dijalankan manual. Home Harness dibuat baru di folder keluaran,
-jadi profil dibuat oleh prototipe sendiri. Hasil di folder keluaran:
+Used by CI (workflow ttoken-desktop-tauri.yml) and can be run by hand. A fresh Harness home is created in the output
+folder, so the prototype creates its profile itself. Results in the output folder:
 
-- screenshot.png      seluruh layar saat composer sudah tampil
-- timeline.jsonl      kejadian shell bertanda waktu
-- memory.json         satu sampel memori pohon proses (bukan angka K1; itu tugas skrip di measure/)
-- smoke.json          ringkasan: waktu composer tampil, cara keluar, dan proses yang tersisa
+- screenshot.png      the whole screen once the composer shows
+- timeline.jsonl      timestamped shell events
+- memory.json         one memory sample of the process tree (not a K1 number; measure/ does that)
+- smoke.json          summary: when the composer showed, how the app exited, and which processes remained
 
-Di Windows jendela ditutup lewat WM_CLOSE, dan skrip gagal bila ada proses milik app yang tersisa (kriteria Fase 1).
-Di macOS dan Linux pohon proses dihentikan paksa setelah screenshot.
+On Windows the window is closed through WM_CLOSE, and the script fails when an app process remains (a phase 1
+criterion). On macOS and Linux the process tree is killed after the screenshot.
 
 .PARAMETER Shell
-Path executable prototipe.
+Path of the prototype executable.
 
 .PARAMETER Payload
-Payload untuk Node biasa (berisi dsh dan runtime): hasil scripts/extract-payload.mjs dari folder resources build
-Electron, karena Node biasa tidak bisa membaca app.asar.
+Payload for plain Node (holding dsh and runtime): the output of scripts/extract-payload.mjs for the resources folder
+of an Electron build, because plain Node cannot read app.asar.
 
 .PARAMETER OutputDirectory
-Folder keluaran; dibuat bila belum ada.
+Output folder; created when missing.
 
 .PARAMETER TimeoutSeconds
-Batas waktu sampai composer tampil.
+How long to wait for the composer.
 #>
 [CmdletBinding()]
 param(
@@ -61,9 +61,12 @@ $start.Environment['TTOKEN_DESKTOP_MARK_COMPOSER'] = '1'
 $launchedAt = Get-UnixMilliseconds
 $shellProcess = [System.Diagnostics.Process]::Start($start)
 Write-Host "Prototipe berjalan sebagai proses $($shellProcess.Id)"
+# On Windows the window is watched the way Measure-Desktop.ps1 watches it, so CI runs that code against a real window.
+$windowWatch = if ($IsWindows) { Start-WindowWatch -Process $shellProcess -TimeoutSeconds $TimeoutSeconds } else { $null }
 
 $summary = [ordered]@{
     launchedAt      = $launchedAt
+    windowShownMs   = $null
     composerShownMs = $null
     failure         = $null
     exit            = $null
@@ -86,7 +89,18 @@ try {
         Start-Sleep -Milliseconds 250
     }
     Write-Host "Composer tampil $($summary.composerShownMs) ms setelah start"
-    # Beri waktu satu putaran render setelah composer muncul sebelum screenshot.
+    if ($null -ne $windowWatch) {
+        $summary.windowShownMs = (Wait-WindowWatch -Watch $windowWatch) - $launchedAt
+        # The shell records window-shown right after it shows the window; the watch must see the window about then.
+        $marked = Read-Timeline | Where-Object event -EQ 'window-shown' | Select-Object -First 1
+        if ($null -eq $marked) { throw 'timeline tidak mencatat window-shown' }
+        $markedMs = [long] $marked.wallMs - $launchedAt
+        Write-Host "Jendela tampil $($summary.windowShownMs) ms setelah start (timeline shell: $markedMs ms)"
+        if ($summary.windowShownMs -lt $markedMs - 250 -or $summary.windowShownMs -gt $markedMs + 3000) {
+            throw "pengamat jendela melihat jendela pada $($summary.windowShownMs) ms, sedangkan shell menampilkannya pada $markedMs ms"
+        }
+    }
+    # Give the page one rendering pass after the composer appears before the screenshot.
     Start-Sleep -Seconds 3
     $tree = @(Get-ProcessTree -RootId $shellProcess.Id)
     Get-TreeMemory -RootId $shellProcess.Id | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $output 'memory.json')
@@ -113,7 +127,7 @@ finally {
     else {
         $summary.exit = "exited-early ($($shellProcess.ExitCode))"
     }
-    # Proses milik app punya beberapa detik untuk keluar setelah shell selesai.
+    # The app's processes get a few seconds to exit after the shell has finished.
     $settle = (Get-Date).AddSeconds(10)
     do {
         $remaining = @(Get-RemainingProcesses -Tree $tree)
@@ -129,5 +143,5 @@ $summary | ConvertTo-Json -Depth 5 | Write-Host
 if ($null -ne $summary.failure) { throw $summary.failure }
 if ($IsWindows -and $summary.exit -ne 'graceful') { throw "prototipe tidak keluar rapi lewat WM_CLOSE ($($summary.exit))" }
 if ($IsWindows -and $summary.remaining.Count -gt 0) { throw "proses milik app tersisa: $($summary.remaining -join ', ')" }
-# Kode keluar perintah native terakhir (ps, screencapture) tidak boleh menentukan hasil langkah CI.
+# The exit code of the last native command (ps, screencapture) must not decide the CI step's result.
 exit 0

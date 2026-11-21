@@ -109,7 +109,8 @@ pub fn run() {
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
             // macOS Cmd+Q and the default app menu's Quit end the event loop without ExitRequested, so the Host
-            // is stopped here; the call returns at once when the exit sequence below already owns the stop.
+            // is stopped here. When the exit sequence below has already started the stop, this waits for it, since
+            // the process ends when this handler returns.
             if let Some(shell) = handle.try_state::<Arc<Shell>>()
                 && let Ok(harness) = &shell.harness
                 && !shell.stopped.load(Ordering::SeqCst)

@@ -15,15 +15,23 @@ function Find-CdpPage {
     <#
     .SYNOPSIS
     Wait for the page target whose URL starts with UrlPrefix and return it (it carries webSocketDebuggerUrl).
+
+    .DESCRIPTION
+    With Process, the wait ends as soon as that process exits. The endpoint is polled ten times a second, so a wait
+    that starts with the app takes little processor time from its startup.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [int] $Port,
         [Parameter(Mandatory)] [string] $UrlPrefix,
-        [int] $TimeoutSeconds = 120
+        [int] $TimeoutSeconds = 120,
+        [System.Diagnostics.Process] $Process
     )
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
+        if ($null -ne $Process -and $Process.HasExited) {
+            throw "the app exited with code $($Process.ExitCode) before its DevTools page appeared"
+        }
         try {
             $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json/list" -TimeoutSec 2 -NoProxy
             $page = @($targets | Where-Object { $_.type -eq 'page' -and $_.url.StartsWith($UrlPrefix) }) | Select-Object -First 1
@@ -31,24 +39,29 @@ function Find-CdpPage {
         }
         catch {
             # The endpoint opens after the browser process starts.
-            Start-Sleep -Milliseconds 15
-            continue
+            Write-Verbose "DevTools endpoint not ready: $($_.Exception.Message)"
         }
-        Start-Sleep -Milliseconds 15
+        Start-Sleep -Milliseconds 100
     }
     throw "no DevTools page starting with $UrlPrefix appeared on port $Port within $TimeoutSeconds seconds"
 }
 
 function Connect-Cdp {
-    <# .SYNOPSIS Open a DevTools connection to one page target. #>
+    <#
+    .SYNOPSIS
+    Open a DevTools connection to one page target.
+
+    .DESCRIPTION
+    Input reaches a page only while it is the foreground page of its window, so the connection brings the page to
+    the front, unless NoActivate is given: then the caller does that once the window shows (Page.bringToFront).
+    #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [string] $WebSocketUrl)
+    param([Parameter(Mandatory)] [string] $WebSocketUrl, [switch] $NoActivate)
     $socket = [System.Net.WebSockets.ClientWebSocket]::new()
     $socket.Options.KeepAliveInterval = [TimeSpan]::FromSeconds(30)
     $null = $socket.ConnectAsync([uri] $WebSocketUrl, [Threading.CancellationToken]::None).GetAwaiter().GetResult()
     $session = [pscustomobject]@{ Socket = $socket; NextId = 1 }
-    # Input reaches a page only while it is the foreground page of its window.
-    $null = Invoke-Cdp -Session $session -Method 'Page.bringToFront'
+    if (-not $NoActivate) { $null = Invoke-Cdp -Session $session -Method 'Page.bringToFront' }
     $session
 }
 

@@ -14,7 +14,10 @@ Set-StrictMode -Version Latest
 if ($IsWindows -and -not ('TTokenWindows' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 public static class TTokenWindows {
     private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
@@ -43,6 +46,22 @@ public static class TTokenWindows {
             return true;
         }, IntPtr.Zero);
         return found;
+    }
+
+    /// Check every 10 ms, on a thread of its own, for a visible window of the process of at least the given size.
+    /// The task's result is the Unix time in milliseconds of the first check that saw it, -1 when the process exited
+    /// first, or -2 after the timeout.
+    public static Task<long> WatchVisibleWindow(Process process, int minimumWidth, int minimumHeight, int timeoutMilliseconds) {
+        uint processId = (uint) process.Id;
+        return Task.Factory.StartNew(() => {
+            Stopwatch clock = Stopwatch.StartNew();
+            while (true) {
+                if (HasVisibleWindow(processId, minimumWidth, minimumHeight)) return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                if (process.HasExited) return -1L;
+                if (clock.ElapsedMilliseconds > timeoutMilliseconds) return -2L;
+                Thread.Sleep(10);
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 }
 '@
@@ -181,6 +200,35 @@ function Test-ProcessWindow {
     [TTokenWindows]::HasVisibleWindow([uint32] $ProcessId, 400, 300)
 }
 
+function Start-WindowWatch {
+    <#
+    .SYNOPSIS
+    Start watching for the process's main window (visible, at least 400 by 300 pixels) on a thread of its own.
+
+    .DESCRIPTION
+    The watch checks every 10 ms however busy the caller is, so the caller can drive the page meanwhile without
+    delaying the time it records. Wait-WindowWatch returns that time (Windows only).
+    #>
+    param([Parameter(Mandatory)] [System.Diagnostics.Process] $Process, [int] $TimeoutSeconds = 120)
+    if (-not $IsWindows) { throw 'Start-WindowWatch needs Windows' }
+    [pscustomobject]@{
+        Task           = [TTokenWindows]::WatchVisibleWindow($Process, 400, 300, $TimeoutSeconds * 1000)
+        Process        = $Process
+        TimeoutSeconds = $TimeoutSeconds
+    }
+}
+
+function Wait-WindowWatch {
+    <# .SYNOPSIS Wait for a window watch; returns the Unix time in milliseconds when the window first showed. #>
+    param([Parameter(Mandatory)] [object] $Watch)
+    # Short waits keep Ctrl+C responsive.
+    while (-not $Watch.Task.Wait(200)) { }
+    $shownAt = $Watch.Task.Result
+    if ($shownAt -eq -1) { throw "the app exited with code $($Watch.Process.ExitCode) before its window showed" }
+    if ($shownAt -lt 0) { throw "no main window showed within $($Watch.TimeoutSeconds) seconds" }
+    $shownAt
+}
+
 function Save-Screenshot {
     <# .SYNOPSIS Save the whole primary screen as a PNG file. #>
     param([Parameter(Mandatory)] [string] $Path)
@@ -215,14 +263,15 @@ function Test-StillRunning {
     param([Parameter(Mandatory)] [object] $Process)
     $running = Get-Process -Id $Process.Id -ErrorAction SilentlyContinue
     if ($null -eq $running) { return $false }
-    try { $started = $running.StartTime }
-    catch {
-        # A recycled id can belong to a process this user cannot open, such as a service; CIM reads its start time
-        # without opening it. A start time that cannot be read at all means "not the captured process".
-        if (-not $IsWindows) { return $false }
-        $started = (Get-CimInstance Win32_Process -Filter "ProcessId = $($Process.Id)" -Property CreationDate -ErrorAction SilentlyContinue).CreationDate
-        if ($null -eq $started) { return $false }
+    # PowerShell turns a start time .NET cannot read into $null, not an error: the process has just exited, or the id
+    # was recycled by a process this user cannot open, such as a service. CIM reads the start time without opening it.
+    $started = $running.StartTime
+    if ($null -eq $started -and $IsWindows) {
+        $instance = Get-CimInstance Win32_Process -Filter "ProcessId = $($Process.Id)" -Property CreationDate -ErrorAction SilentlyContinue
+        if ($null -ne $instance) { $started = $instance.CreationDate }
     }
+    # A start time that cannot be read at all means "not the captured process".
+    if ($null -eq $started) { return $false }
     # ps reports start times to the second; CIM to the microsecond.
     [Math]::Abs(($started - $Process.Started).TotalSeconds) -lt 2
 }
@@ -242,4 +291,4 @@ function Get-RemainingProcesses {
 }
 
 Export-ModuleMember -Function Get-UnixMilliseconds, Get-ProcessTree, Get-ProcessKind, Get-TreeMemory, Test-ProcessWindow,
-Save-Screenshot, Test-StillRunning, Stop-ProcessTree, Get-RemainingProcesses
+Start-WindowWatch, Wait-WindowWatch, Save-Screenshot, Test-StillRunning, Stop-ProcessTree, Get-RemainingProcesses
